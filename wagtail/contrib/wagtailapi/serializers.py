@@ -131,7 +131,7 @@ class PageParentField(RelatedField):
     def get_attribute(self, instance):
         parent = instance.get_parent()
 
-        site_pages = pages_for_site(self.context['request'].site)
+        site_pages = pages_for_site(self.context['request'].wagtail_site)
         if site_pages.filter(id=parent.id).exists():
             return parent
 

@@ -14,7 +14,7 @@ def pageurl(context, page):
     Outputs a page's URL as relative (/foo/bar/) if it's within the same site as the
     current page, or absolute (http://example.com/foo/bar/) if not.
     """
-    return page.relative_url(context['request'].site)
+    return page.relative_url(context['request'].wagtail_site)
 
 
 @register.simple_tag(takes_context=True)
@@ -23,7 +23,7 @@ def slugurl(context, slug):
     page = Page.objects.filter(slug=slug).first()
 
     if page:
-        return page.relative_url(context['request'].site)
+        return page.relative_url(context['request'].wagtail_site)
     else:
         return None
 

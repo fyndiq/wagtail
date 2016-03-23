@@ -1098,7 +1098,7 @@ class TestPageEdit(TestCase, WagtailTestUtils):
         # Check that the correct site object has been selected by the site middleware
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'tests/simple_page.html')
-        self.assertEqual(response.context['request'].site.hostname, 'childpage.example.com')
+        self.assertEqual(response.context['request'].wagtail_site.hostname, 'childpage.example.com')
 
     def test_editor_picks_up_direct_model_edits(self):
         # If a page has no draft edits, the editor should show the version from the live database
