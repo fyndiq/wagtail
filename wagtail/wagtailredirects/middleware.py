@@ -19,14 +19,14 @@ class RedirectMiddleware(object):
 
         # Find redirect
         try:
-            redirect = models.Redirect.get_for_site(request.site).get(old_path=path)
+            redirect = models.Redirect.get_for_site(request.wagtail_site).get(old_path=path)
         except models.Redirect.DoesNotExist:
             if path == path_without_query:
                 # don't try again if we know we will get the same response
                 return response
 
             try:
-                redirect = models.Redirect.get_for_site(request.site).get(old_path=path_without_query)
+                redirect = models.Redirect.get_for_site(request.wagtail_site).get(old_path=path_without_query)
             except models.Redirect.DoesNotExist:
                 return response
 

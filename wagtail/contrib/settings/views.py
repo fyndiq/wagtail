@@ -35,7 +35,7 @@ def get_setting_edit_handler(model):
 def edit_current_site(request, app_name, model_name):
     # Redirect the user to the edit page for the current site
     # (or the current request does not correspond to a site, the first site in the list)
-    site = request.site or Site.objects.first()
+    site = request.wagtail_site or Site.objects.first()
     return redirect('wagtailsettings:edit', site.pk, app_name, model_name)
 
 

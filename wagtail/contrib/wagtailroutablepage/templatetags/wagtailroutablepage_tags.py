@@ -19,6 +19,6 @@ def routablepageurl(context, page, url_name, *args, **kwargs):
     positional arguments and keyword arguments.
     """
     request = context['request']
-    base_url = page.relative_url(request.site)
+    base_url = page.relative_url(request.wagtail_site)
     routed_url = page.reverse_subpage(url_name, args=args, kwargs=kwargs)
     return base_url + routed_url

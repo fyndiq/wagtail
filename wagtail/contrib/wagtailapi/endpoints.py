@@ -228,7 +228,7 @@ class PagesAPIEndpoint(BaseAPIEndpoint):
         queryset = model.objects.public().live()
 
         # Filter by site
-        queryset = queryset.descendant_of(request.site.root_page, inclusive=True)
+        queryset = queryset.descendant_of(request.wagtail_site.root_page, inclusive=True)
 
         return queryset
 

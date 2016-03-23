@@ -38,7 +38,7 @@ def search(
 
     # Search
     if query_string != '':
-        pages = models.Page.objects.filter(path__startswith=(path or request.site.root_page.path))
+        pages = models.Page.objects.filter(path__startswith=(path or request.wagtail_site.root_page.path))
 
         if not show_unpublished:
             pages = pages.live()

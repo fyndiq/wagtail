@@ -53,4 +53,4 @@ class SettingModuleProxy(dict):
 
 
 def settings(request):
-    return {'settings': SettingsProxy(request.site)}
+    return {'settings': SettingsProxy(request.wagtail_site)}

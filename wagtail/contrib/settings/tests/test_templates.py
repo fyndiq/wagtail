@@ -29,7 +29,7 @@ class TemplateTestCase(TestCase, WagtailTestUtils):
         if site is None:
             site = self.default_site
         request = self.client.get('/test/', HTTP_HOST=site.hostname)
-        request.site = site
+        request.wagtail_site = site
         return request
 
     def render(self, request, string, context=None, site=None):

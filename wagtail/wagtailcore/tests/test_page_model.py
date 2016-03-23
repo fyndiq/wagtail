@@ -201,7 +201,7 @@ class TestRouting(TestCase):
 
         request = HttpRequest()
         request.user = AnonymousUser()
-        request.site = Site.objects.first()
+        request.wagtail_site = Site.objects.first()
 
         response = christmas_page.serve(request)
         self.assertEqual(response.status_code, 200)

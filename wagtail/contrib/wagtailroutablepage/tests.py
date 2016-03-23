@@ -123,7 +123,7 @@ class TestRoutablePageTemplateTag(TestCase):
 
         self.rf = RequestFactory()
         self.request = self.rf.get(self.routable_page.url)
-        self.request.site = Site.find_for_request(self.request)
+        self.request.wagtail_site = Site.find_for_request(self.request)
         self.context = {'request': self.request}
 
     def test_templatetag_reverse_main_view(self):

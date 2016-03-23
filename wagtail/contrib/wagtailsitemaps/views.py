@@ -6,12 +6,12 @@ from .sitemap_generator import Sitemap
 
 
 def sitemap(request):
-    cache_key = 'wagtail-sitemap:' + str(request.site.id)
+    cache_key = 'wagtail-sitemap:' + str(request.wagtail_site.id)
     sitemap_xml = cache.get(cache_key)
 
     if not sitemap_xml:
         # Rerender sitemap
-        sitemap = Sitemap(request.site)
+        sitemap = Sitemap(request.wagtail_site)
         sitemap_xml = sitemap.render()
 
         cache.set(cache_key, sitemap_xml, getattr(settings, 'WAGTAILSITEMAPS_CACHE_TIMEOUT', 6000))
