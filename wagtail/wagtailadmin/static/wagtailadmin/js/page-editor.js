@@ -7,7 +7,8 @@ var halloPlugins = {
     hallohr: {},
     halloreundo: {},
     hallowagtaillink: {},
-    hallorequireparagraphs: {}
+    hallorequireparagraphs: {},
+    hallohtml: {}
 };
 
 function registerHalloPlugin(name, opts) {
