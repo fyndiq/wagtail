@@ -1,14 +1,13 @@
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
-from django.forms import MediaDefiningClass, Media
+from django.contrib.staticfiles.templatetags.staticfiles import static
+from django.forms import Media, MediaDefiningClass
 from django.forms.utils import flatatt
-from django.utils.text import slugify
+from django.template.loader import render_to_string
 from django.utils.safestring import mark_safe
-from django.utils.six import text_type
+from django.utils.six import text_type, with_metaclass
+from django.utils.text import slugify
 
-from django.utils.six import with_metaclass
-
-from wagtail.utils.compat import render_to_string
 from wagtail.wagtailcore import hooks
 
 
@@ -106,7 +105,7 @@ class SubmenuMenuItem(MenuItem):
 
     @property
     def media(self):
-        return Media(js=['wagtailadmin/js/submenu.js']) + self.menu.media
+        return Media(js=[static('wagtailadmin/js/submenu.js')]) + self.menu.media
 
     def is_shown(self, request):
         # show the submenu if one or more of its children is shown

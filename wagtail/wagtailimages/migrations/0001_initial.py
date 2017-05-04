@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-from django.db import models, migrations
-import wagtail.wagtailimages.models
 import taggit.managers
 from django.conf import settings
-import wagtail.wagtailadmin.taggable
+from django.db import migrations, models
+
+import wagtail.wagtailimages.models
+import wagtail.wagtailsearch.index
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('taggit', '__latest__'),
+        ('taggit', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -46,13 +47,14 @@ class Migration(migrations.Migration):
                     verbose_name='Tags', blank=True, help_text=None, to='taggit.Tag', through='taggit.TaggedItem'
                 )),
                 ('uploaded_by_user', models.ForeignKey(
+                    on_delete=models.CASCADE,
                     editable=False, blank=True, null=True, to=settings.AUTH_USER_MODEL
                 )),
             ],
             options={
                 'abstract': False,
             },
-            bases=(models.Model, wagtail.wagtailadmin.taggable.TagSearchable),
+            bases=(models.Model, wagtail.wagtailsearch.index.Indexed),
         ),
         migrations.CreateModel(
             name='Rendition',
@@ -61,9 +63,9 @@ class Migration(migrations.Migration):
                 ('file', models.ImageField(width_field='width', upload_to='images', height_field='height')),
                 ('width', models.IntegerField(editable=False)),
                 ('height', models.IntegerField(editable=False)),
-                ('focal_point_key', models.CharField(editable=False, max_length=255, null=True)),
-                ('filter', models.ForeignKey(related_name='+', to='wagtailimages.Filter')),
-                ('image', models.ForeignKey(related_name='renditions', to='wagtailimages.Image')),
+                ('focal_point_key', models.CharField(editable=False, max_length=18, null=True)),
+                ('filter', models.ForeignKey(on_delete=models.CASCADE, related_name='+', to='wagtailimages.Filter')),
+                ('image', models.ForeignKey(on_delete=models.CASCADE, related_name='renditions', to='wagtailimages.Image')),
             ],
             options={
             },

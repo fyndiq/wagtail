@@ -1,41 +1,54 @@
-import django
-from django.http import Http404, HttpResponse
-from django.shortcuts import render, redirect, get_object_or_404
-from django.core.exceptions import ValidationError, PermissionDenied
+from __future__ import absolute_import, unicode_literals
+from time import time
+
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import PermissionDenied
 from django.core.urlresolvers import reverse
+from django.db.models import Count
+from django.http import Http404, HttpResponse, JsonResponse
+from django.http.request import QueryDict
+from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.utils import timezone
+from django.utils.http import is_safe_url, urlquote
+from django.utils.safestring import mark_safe
 from django.utils.translation import ugettext as _
-from django.utils.http import is_safe_url
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.vary import vary_on_headers
-from django.db.models import Count
+from django.views.generic import View
 
 from wagtail.utils.pagination import paginate
-from wagtail.wagtailadmin.edit_handlers import TabbedInterface, ObjectList
-from wagtail.wagtailadmin.forms import SearchForm, CopyForm
-from wagtail.wagtailadmin.utils import send_notification
-from wagtail.wagtailadmin import signals
-
+from wagtail.wagtailadmin import messages, signals
+from wagtail.wagtailadmin.forms import CopyForm, SearchForm
+from wagtail.wagtailadmin.navigation import get_navigation_menu_items
+from wagtail.wagtailadmin.utils import (
+    send_notification, user_has_any_page_permission, user_passes_test)
 from wagtail.wagtailcore import hooks
-from wagtail.wagtailcore.models import Page, PageRevision, get_navigation_menu_items
-
-from wagtail.wagtailadmin import messages
+from wagtail.wagtailcore.models import Page, PageRevision, UserPagePermissionsProxy
 
 
+def get_valid_next_url_from_request(request):
+    next_url = request.POST.get('next') or request.GET.get('next')
+    if not next_url or not is_safe_url(url=next_url, host=request.get_host()):
+        return ''
+    return next_url
+
+
+@user_passes_test(user_has_any_page_permission)
 def explorer_nav(request):
     return render(request, 'wagtailadmin/shared/explorer_nav.html', {
-        'nodes': get_navigation_menu_items(),
+        'nodes': get_navigation_menu_items(request.user),
     })
 
 
+@user_passes_test(user_has_any_page_permission)
 def index(request, parent_page_id=None):
     if parent_page_id:
-        parent_page = get_object_or_404(Page, id=parent_page_id)
+        parent_page = get_object_or_404(Page, id=parent_page_id).specific
     else:
-        parent_page = Page.get_first_root_node()
+        parent_page = Page.get_first_root_node().specific
 
-    pages = parent_page.get_children().prefetch_related('content_type')
+    pages = parent_page.get_children().prefetch_related('content_type', 'sites_rooted_here')
 
     # Get page ordering
     ordering = request.GET.get('ordering', '-latest_revision_created_at')
@@ -51,18 +64,46 @@ def index(request, parent_page_id=None):
     ]:
         ordering = '-latest_revision_created_at'
 
-    # Pagination
+    if ordering == 'ord':
+        # preserve the native ordering from get_children()
+        pass
+    elif ordering == 'latest_revision_created_at':
+        # order by oldest revision first.
+        # Special case NULL entries - these should go at the top of the list.
+        # Do this by annotating with Count('latest_revision_created_at'),
+        # which returns 0 for these
+        pages = pages.annotate(
+            null_position=Count('latest_revision_created_at')
+        ).order_by('null_position', 'latest_revision_created_at')
+    elif ordering == '-latest_revision_created_at':
+        # order by oldest revision first.
+        # Special case NULL entries - these should go at the end of the list.
+        pages = pages.annotate(
+            null_position=Count('latest_revision_created_at')
+        ).order_by('-null_position', '-latest_revision_created_at')
+    else:
+        pages = pages.order_by(ordering)
+
     # Don't paginate if sorting by page order - all pages must be shown to
     # allow drag-and-drop reordering
     do_paginate = ordering != 'ord'
+
     if do_paginate:
-        ordering_no_minus = ordering.lstrip('-')
-        pages = pages.order_by(ordering).annotate(
-            null_position=Count(ordering_no_minus)).order_by('-null_position', ordering)
+        # Retrieve pages in their most specific form.
+        # Only do this for paginated listings, as this could potentially be a
+        # very expensive operation when performed on a large queryset.
+        pages = pages.specific()
+
+    # allow hooks to modify the queryset
+    for hook in hooks.get_hooks('construct_explorer_page_queryset'):
+        pages = hook(parent_page, pages, request)
+
+    # Pagination
+    if do_paginate:
         paginator, pages = paginate(request, pages, per_page=50)
 
     return render(request, 'wagtailadmin/pages/index.html', {
-        'parent_page': parent_page,
+        'parent_page': parent_page.specific,
         'ordering': ordering,
         'pagination_query_params': "ordering=%s" % ordering,
         'pages': pages,
@@ -92,6 +133,7 @@ def add_subpage(request, parent_page_id):
     return render(request, 'wagtailadmin/pages/add_subpage.html', {
         'parent_page': parent_page,
         'page_types': page_types,
+        'next': get_valid_next_url_from_request(request),
     })
 
 
@@ -141,13 +183,23 @@ def create(request, content_type_app_name, content_type_model_name, parent_page_
     if page_class not in parent_page.creatable_subpage_models():
         raise PermissionDenied
 
+    if not page_class.can_create_at(parent_page):
+        raise PermissionDenied
+
+    for fn in hooks.get_hooks('before_create_page'):
+        result = fn(request, parent_page, page_class)
+        if hasattr(result, 'status_code'):
+            return result
+
     page = page_class(owner=request.user)
-    edit_handler_class = get_page_edit_handler(page_class)
+    edit_handler_class = page_class.get_edit_handler()
     form_class = edit_handler_class.get_form_class(page_class)
 
-    if request.POST:
-        form = form_class(request.POST, request.FILES, instance=page)
-        validate_page_form(form, parent_page)
+    next_url = get_valid_next_url_from_request(request)
+
+    if request.method == 'POST':
+        form = form_class(request.POST, request.FILES, instance=page,
+                          parent_page=parent_page)
 
         if form.is_valid():
             page = form.save(commit=False)
@@ -173,22 +225,35 @@ def create(request, content_type_app_name, content_type_model_name, parent_page_
 
             # Notifications
             if is_publishing:
-                messages.success(request, _("Page '{0}' created and published.").format(page.title), buttons=[
-                    messages.button(page.url, _('View live')),
-                    messages.button(reverse('wagtailadmin_pages:edit', args=(page.id,)), _('Edit'))
-                ])
+                if page.go_live_at and page.go_live_at > timezone.now():
+                    messages.success(request, _("Page '{0}' created and scheduled for publishing.").format(page.get_admin_display_title()), buttons=[
+                        messages.button(reverse('wagtailadmin_pages:edit', args=(page.id,)), _('Edit'))
+                    ])
+                else:
+                    messages.success(request, _("Page '{0}' created and published.").format(page.get_admin_display_title()), buttons=[
+                        messages.button(page.url, _('View live'), new_window=True),
+                        messages.button(reverse('wagtailadmin_pages:edit', args=(page.id,)), _('Edit'))
+                    ])
             elif is_submitting:
                 messages.success(
                     request,
-                    _("Page '{0}' created and submitted for moderation.").format(page.title),
+                    _("Page '{0}' created and submitted for moderation.").format(page.get_admin_display_title()),
                     buttons=[
-                        messages.button(reverse('wagtailadmin_pages:view_draft', args=(page.id,)), _('View draft')),
-                        messages.button(reverse('wagtailadmin_pages:edit', args=(page.id,)), _('Edit'))
+                        messages.button(
+                            reverse('wagtailadmin_pages:view_draft', args=(page.id,)),
+                            _('View draft'),
+                            new_window=True
+                        ),
+                        messages.button(
+                            reverse('wagtailadmin_pages:edit', args=(page.id,)),
+                            _('Edit')
+                        )
                     ]
                 )
-                send_notification(page.get_latest_revision().id, 'submitted', request.user.id)
+                if not send_notification(page.get_latest_revision().id, 'submitted', request.user.pk):
+                    messages.error(request, _("Failed to send notifications to moderators"))
             else:
-                messages.success(request, _("Page '{0}' created.").format(page.title))
+                messages.success(request, _("Page '{0}' created.").format(page.get_admin_display_title()))
 
             for fn in hooks.get_hooks('after_create_page'):
                 result = fn(request, page)
@@ -196,18 +261,30 @@ def create(request, content_type_app_name, content_type_model_name, parent_page_
                     return result
 
             if is_publishing or is_submitting:
-                # we're done here - redirect back to the explorer
+                # we're done here
+                if next_url:
+                    # redirect back to 'next' url if present
+                    return redirect(next_url)
+                # redirect back to the explorer
                 return redirect('wagtailadmin_explore', page.get_parent().id)
             else:
                 # Just saving - remain on edit page for further edits
-                return redirect('wagtailadmin_pages:edit', page.id)
+                target_url = reverse('wagtailadmin_pages:edit', args=[page.id])
+                if next_url:
+                    # Ensure the 'next' url is passed through again if present
+                    target_url += '?next=%s' % urlquote(next_url)
+                return redirect(target_url)
         else:
-            messages.error(request, _("The page could not be created due to validation errors"))
+            messages.validation_error(
+                request, _("The page could not be created due to validation errors"), form
+            )
             edit_handler = edit_handler_class(instance=page, form=form)
+            has_unsaved_changes = True
     else:
         signals.init_new_page.send(sender=create, page=page, parent=parent_page)
-        form = form_class(instance=page)
+        form = form_class(instance=page, parent_page=parent_page)
         edit_handler = edit_handler_class(instance=page, form=form)
+        has_unsaved_changes = False
 
     return render(request, 'wagtailadmin/pages/create.html', {
         'content_type': content_type,
@@ -215,7 +292,9 @@ def create(request, content_type_app_name, content_type_model_name, parent_page_
         'parent_page': parent_page,
         'edit_handler': edit_handler,
         'preview_modes': page.preview_modes,
-        'form': form,  # Used in unit tests
+        'form': form,
+        'next': next_url,
+        'has_unsaved_changes': has_unsaved_changes,
     })
 
 
@@ -225,25 +304,39 @@ def edit(request, page_id):
     parent = page.get_parent()
 
     content_type = ContentType.objects.get_for_model(page)
+    page_class = content_type.model_class()
 
     page_perms = page.permissions_for_user(request.user)
     if not page_perms.can_edit():
         raise PermissionDenied
 
-    edit_handler_class = get_page_edit_handler(page.__class__)
-    form_class = edit_handler_class.get_form_class(page.__class__)
+    for fn in hooks.get_hooks('before_edit_page'):
+        result = fn(request, page)
+        if hasattr(result, 'status_code'):
+            return result
+
+    edit_handler_class = page_class.get_edit_handler()
+    form_class = edit_handler_class.get_form_class(page_class)
+
+    next_url = get_valid_next_url_from_request(request)
 
     errors_debug = None
 
-    if request.POST:
-        form = form_class(request.POST, request.FILES, instance=page)
-        validate_page_form(form, parent, page)
+    if request.method == 'POST':
+        form = form_class(request.POST, request.FILES, instance=page,
+                          parent_page=parent)
 
         if form.is_valid() and not page.locked:
             page = form.save(commit=False)
 
             is_publishing = bool(request.POST.get('action-publish')) and page_perms.can_publish()
             is_submitting = bool(request.POST.get('action-submit'))
+            is_reverting = bool(request.POST.get('revision'))
+
+            # If a revision ID was passed in the form, get that revision so its
+            # date can be referenced in notification messages
+            if is_reverting:
+                previous_revision = get_object_or_404(page.revisions, id=request.POST.get('revision'))
 
             # Save revision
             revision = page.save_revision(
@@ -256,22 +349,103 @@ def edit(request, page_id):
                 revision.publish()
                 # Need to reload the page because the URL may have changed, and we
                 # need the up-to-date URL for the "View Live" button.
-                page = Page.objects.get(pk=page.pk)
+                page = page.specific_class.objects.get(pk=page.pk)
 
             # Notifications
             if is_publishing:
-                messages.success(request, _("Page '{0}' published.").format(page.title), buttons=[
-                    messages.button(page.url, _('View live')),
-                    messages.button(reverse('wagtailadmin_pages:edit', args=(page_id,)), _('Edit'))
-                ])
+                if page.go_live_at and page.go_live_at > timezone.now():
+                    # Page has been scheduled for publishing in the future
+
+                    if is_reverting:
+                        message = _(
+                            "Revision from {0} of page '{1}' has been scheduled for publishing."
+                        ).format(
+                            previous_revision.created_at.strftime("%d %b %Y %H:%M"),
+                            page.get_admin_display_title()
+                        )
+                    else:
+                        message = _(
+                            "Page '{0}' has been scheduled for publishing."
+                        ).format(
+                            page.get_admin_display_title()
+                        )
+
+                    messages.success(request, message, buttons=[
+                        messages.button(
+                            reverse('wagtailadmin_pages:edit', args=(page.id,)),
+                            _('Edit')
+                        )
+                    ])
+
+                else:
+                    # Page is being published now
+
+                    if is_reverting:
+                        message = _(
+                            "Revision from {0} of page '{1}' has been published."
+                        ).format(
+                            previous_revision.created_at.strftime("%d %b %Y %H:%M"),
+                            page.get_admin_display_title()
+                        )
+                    else:
+                        message = _(
+                            "Page '{0}' has been published."
+                        ).format(
+                            page.get_admin_display_title()
+                        )
+
+                    messages.success(request, message, buttons=[
+                        messages.button(
+                            page.url,
+                            _('View live'),
+                            new_window=True
+                        ),
+                        messages.button(
+                            reverse('wagtailadmin_pages:edit', args=(page_id,)),
+                            _('Edit')
+                        )
+                    ])
+
             elif is_submitting:
-                messages.success(request, _("Page '{0}' submitted for moderation.").format(page.title), buttons=[
-                    messages.button(reverse('wagtailadmin_pages:view_draft', args=(page_id,)), _('View draft')),
-                    messages.button(reverse('wagtailadmin_pages:edit', args=(page_id,)), _('Edit'))
+
+                message = _(
+                    "Page '{0}' has been submitted for moderation."
+                ).format(
+                    page.get_admin_display_title()
+                )
+
+                messages.success(request, message, buttons=[
+                    messages.button(
+                        reverse('wagtailadmin_pages:view_draft', args=(page_id,)),
+                        _('View draft'),
+                        new_window=True
+                    ),
+                    messages.button(
+                        reverse('wagtailadmin_pages:edit', args=(page_id,)),
+                        _('Edit')
+                    )
                 ])
-                send_notification(page.get_latest_revision().id, 'submitted', request.user.id)
-            else:
-                messages.success(request, _("Page '{0}' updated.").format(page.title))
+
+                if not send_notification(page.get_latest_revision().id, 'submitted', request.user.pk):
+                    messages.error(request, _("Failed to send notifications to moderators"))
+
+            else:  # Saving
+
+                if is_reverting:
+                    message = _(
+                        "Page '{0}' has been replaced with revision from {1}."
+                    ).format(
+                        page.get_admin_display_title(),
+                        previous_revision.created_at.strftime("%d %b %Y %H:%M")
+                    )
+                else:
+                    message = _(
+                        "Page '{0}' has been updated."
+                    ).format(
+                        page.get_admin_display_title()
+                    )
+
+                messages.success(request, message)
 
             for fn in hooks.get_hooks('after_edit_page'):
                 result = fn(request, page)
@@ -280,30 +454,52 @@ def edit(request, page_id):
 
             if is_publishing or is_submitting:
                 # we're done here - redirect back to the explorer
+                if next_url:
+                    # redirect back to 'next' url if present
+                    return redirect(next_url)
+                # redirect back to the explorer
                 return redirect('wagtailadmin_explore', page.get_parent().id)
             else:
                 # Just saving - remain on edit page for further edits
-                return redirect('wagtailadmin_pages:edit', page.id)
+                target_url = reverse('wagtailadmin_pages:edit', args=[page.id])
+                if next_url:
+                    # Ensure the 'next' url is passed through again if present
+                    target_url += '?next=%s' % urlquote(next_url)
+                return redirect(target_url)
         else:
             if page.locked:
                 messages.error(request, _("The page could not be saved as it is locked"))
             else:
-                messages.error(request, _("The page could not be saved due to validation errors"))
+                messages.validation_error(
+                    request, _("The page could not be saved due to validation errors"), form
+                )
 
             edit_handler = edit_handler_class(instance=page, form=form)
             errors_debug = (
-                repr(edit_handler.form.errors)
-                + repr(
-                    [(name, formset.errors) for (name, formset) in edit_handler.form.formsets.items() if formset.errors]
-                )
+                repr(edit_handler.form.errors) +
+                repr([
+                    (name, formset.errors)
+                    for (name, formset) in edit_handler.form.formsets.items()
+                    if formset.errors
+                ])
             )
+            has_unsaved_changes = True
     else:
-        form = form_class(instance=page)
+        form = form_class(instance=page, parent_page=parent)
         edit_handler = edit_handler_class(instance=page, form=form)
+        has_unsaved_changes = False
 
     # Check for revisions still undergoing moderation and warn
     if latest_revision and latest_revision.submitted_for_moderation:
-        messages.warning(request, _("This page is currently awaiting moderation"))
+        buttons = []
+
+        if page.live:
+            buttons.append(messages.button(
+                reverse('wagtailadmin_pages:revisions_compare', args=(page.id, 'live', latest_revision.id)),
+                _('Compare with live version')
+            ))
+
+        messages.warning(request, _("This page is currently awaiting moderation"), buttons=buttons)
 
     return render(request, 'wagtailadmin/pages/edit.html', {
         'page': page,
@@ -311,50 +507,10 @@ def edit(request, page_id):
         'edit_handler': edit_handler,
         'errors_debug': errors_debug,
         'preview_modes': page.preview_modes,
-        'form': form,  # Used in unit tests
+        'form': form,
+        'next': next_url,
+        'has_unsaved_changes': has_unsaved_changes,
     })
-
-
-def validate_page_form(form, parent_page, instance=None):
-    # Strip whitespace in title and seo_title fields
-    # This is done for us in Django 1.9 and above
-    if django.VERSION < (1, 9):
-        def clean_title():
-            return form.cleaned_data['title'].strip()
-
-        def clean_seo_title():
-            return form.cleaned_data['seo_title'].strip()
-
-        form.clean_title = clean_title
-        form.clean_seo_title = clean_seo_title
-
-    # Perform default validation
-    form.full_clean()
-
-    if 'slug' in form.cleaned_data:
-        # Get siblings for the page
-        siblings = parent_page.get_children()
-        if instance and instance.id:
-            siblings = siblings.exclude(id=instance.id)
-
-        # Make sure the slug isn't being used by a sibling
-        if siblings.filter(slug=form.cleaned_data['slug']).exists():
-            form.add_error('slug', ValidationError(_("This slug is already in use")))
-
-    # Check scheduled publishing fields
-    go_live_at = form.cleaned_data.get('go_live_at')
-    expire_at = form.cleaned_data.get('expire_at')
-
-    # Go live must be before expire
-    if go_live_at and expire_at:
-        if go_live_at > expire_at:
-            msg = _('Go live date/time must be before expiry date/time')
-            form.add_error('go_live_at', ValidationError(msg))
-            form.add_error('expire_at', ValidationError(msg))
-
-    # Expire at must be in the future
-    if expire_at and expire_at < timezone.now():
-        form.add_error('expire_at', ValidationError(_('Expiry date/time must be in the future')))
 
 
 def delete(request, page_id):
@@ -362,152 +518,179 @@ def delete(request, page_id):
     if not page.permissions_for_user(request.user).can_delete():
         raise PermissionDenied
 
+    for fn in hooks.get_hooks('before_delete_page'):
+        result = fn(request, page)
+        if hasattr(result, 'status_code'):
+            return result
+
+    next_url = get_valid_next_url_from_request(request)
+
     if request.method == 'POST':
         parent_id = page.get_parent().id
         page.delete()
 
-        messages.success(request, _("Page '{0}' deleted.").format(page.title))
+        messages.success(request, _("Page '{0}' deleted.").format(page.get_admin_display_title()))
 
         for fn in hooks.get_hooks('after_delete_page'):
             result = fn(request, page)
             if hasattr(result, 'status_code'):
                 return result
 
+        if next_url:
+            return redirect(next_url)
         return redirect('wagtailadmin_explore', parent_id)
 
     return render(request, 'wagtailadmin/pages/confirm_delete.html', {
         'page': page,
-        'descendant_count': page.get_descendant_count()
+        'descendant_count': page.get_descendant_count(),
+        'next': next_url,
     })
 
 
 def view_draft(request, page_id):
     page = get_object_or_404(Page, id=page_id).get_latest_revision_as_page()
-    return page.serve_preview(page.dummy_request(), page.default_preview_mode)
+    perms = page.permissions_for_user(request.user)
+    if not (perms.can_publish() or perms.can_edit()):
+        raise PermissionDenied
+    return page.serve_preview(page.dummy_request(request), page.default_preview_mode)
 
 
-def preview_on_edit(request, page_id):
-    # Receive the form submission that would typically be posted to the 'edit' view. If submission is valid,
-    # return the rendered page; if not, re-render the edit form
-    page = get_object_or_404(Page, id=page_id).get_latest_revision_as_page()
-    edit_handler_class = get_page_edit_handler(page.__class__)
-    form_class = edit_handler_class.get_form_class(page.__class__)
+class PreviewOnEdit(View):
+    http_method_names = ('post', 'get')
+    preview_expiration_timeout = 60 * 60 * 24  # seconds
+    session_key_prefix = 'wagtail-preview-'
 
-    form = form_class(request.POST, request.FILES, instance=page)
+    def remove_old_preview_data(self):
+        expiration = time() - self.preview_expiration_timeout
+        for k, v in self.request.session.items():
+            if not k.startswith(self.session_key_prefix):
+                continue
+            post_data, timestamp = v
+            if timestamp < expiration:
+                # Removes the session key gracefully
+                self.request.session.pop(k)
 
-    if form.is_valid():
-        form.save(commit=False)
+    @property
+    def session_key(self):
+        return self.session_key_prefix + ','.join(self.args)
 
-        preview_mode = request.GET.get('mode', page.default_preview_mode)
-        response = page.serve_preview(page.dummy_request(), preview_mode)
-        response['X-Wagtail-Preview'] = 'ok'
-        return response
+    def get_page(self):
+        return get_object_or_404(Page,
+                                 id=self.args[0]).get_latest_revision_as_page()
 
-    else:
-        edit_handler = edit_handler_class(instance=page, form=form)
+    def get_form(self):
+        page = self.get_page()
+        form_class = page.get_edit_handler().get_form_class(page._meta.model)
+        parent_page = page.get_parent().specific
+        post_data_dict, timestamp = self.request.session[self.session_key]
 
-        response = render(request, 'wagtailadmin/pages/edit.html', {
-            'page': page,
-            'edit_handler': edit_handler,
-            'preview_modes': page.preview_modes,
-        })
-        response['X-Wagtail-Preview'] = 'error'
-        return response
+        # convert post_data_dict back into a QueryDict
+        post_data = QueryDict('', mutable=True)
+        for k, v in post_data_dict.items():
+            post_data.setlist(k, v)
+
+        return form_class(post_data, instance=page, parent_page=parent_page)
+
+    def post(self, request, *args, **kwargs):
+        # TODO: Handle request.FILES.
+
+        # Convert request.POST to a plain dict (rather than a QueryDict) so that it can be
+        # stored without data loss in session data
+        post_data_dict = dict(request.POST.lists())
+
+        request.session[self.session_key] = post_data_dict, time()
+        self.remove_old_preview_data()
+        form = self.get_form()
+        return JsonResponse({'is_valid': form.is_valid()})
+
+    def error_response(self, page):
+        return render(self.request, 'wagtailadmin/pages/preview_error.html',
+                      {'page': page})
+
+    def get(self, request, *args, **kwargs):
+        # Receive the form submission that would typically be posted
+        # to the view. If submission is valid, return the rendered page;
+        # if not, re-render the edit form
+        form = self.get_form()
+        page = form.instance
+
+        if form.is_valid():
+            form.save(commit=False)
+
+            preview_mode = request.GET.get('mode', page.default_preview_mode)
+            return page.serve_preview(page.dummy_request(request),
+                                      preview_mode)
+
+        return self.error_response(page)
 
 
-def preview_on_create(request, content_type_app_name, content_type_model_name, parent_page_id):
-    # Receive the form submission that would typically be posted to the 'create' view. If submission is valid,
-    # return the rendered page; if not, re-render the edit form
-    try:
-        content_type = ContentType.objects.get_by_natural_key(content_type_app_name, content_type_model_name)
-    except ContentType.DoesNotExist:
-        raise Http404
+class PreviewOnCreate(PreviewOnEdit):
+    def get_page(self):
+        (content_type_app_name, content_type_model_name,
+         parent_page_id) = self.args
+        try:
+            content_type = ContentType.objects.get_by_natural_key(
+                content_type_app_name, content_type_model_name)
+        except ContentType.DoesNotExist:
+            raise Http404
 
-    page_class = content_type.model_class()
-    page = page_class()
-    edit_handler_class = get_page_edit_handler(page_class)
-    form_class = edit_handler_class.get_form_class(page_class)
-
-    form = form_class(request.POST, request.FILES, instance=page)
-
-    if form.is_valid():
-        form.save(commit=False)
-
-        # ensure that our unsaved page instance has a suitable url set
+        page = content_type.model_class()()
         parent_page = get_object_or_404(Page, id=parent_page_id).specific
-        page.set_url_path(parent_page)
-
-        # Set treebeard attributes
+        # We need to populate treebeard's path / depth fields in order to
+        # pass validation. We can't make these 100% consistent with the rest
+        # of the tree without making actual database changes (such as
+        # incrementing the parent's numchild field), but by calling treebeard's
+        # internal _get_path method, we can set a 'realistic' value that will
+        # hopefully enable tree traversal operations
+        # to at least partially work.
         page.depth = parent_page.depth + 1
+        # Puts the page at the maximum possible path
+        # for a child of `parent_page`.
         page.path = Page._get_children_path_interval(parent_page.path)[1]
+        return page
 
-        preview_mode = request.GET.get('mode', page.default_preview_mode)
-        response = page.serve_preview(page.dummy_request(), preview_mode)
-        response['X-Wagtail-Preview'] = 'ok'
-        return response
+    def get_form(self):
+        form = super(PreviewOnCreate, self).get_form()
+        if form.is_valid():
+            # Ensures our unsaved page has a suitable url.
+            form.instance.set_url_path(form.parent_page)
 
-    else:
-        edit_handler = edit_handler_class(instance=page, form=form)
-        parent_page = get_object_or_404(Page, id=parent_page_id).specific
-
-        response = render(request, 'wagtailadmin/pages/create.html', {
-            'content_type': content_type,
-            'page_class': page_class,
-            'parent_page': parent_page,
-            'edit_handler': edit_handler,
-            'preview_modes': page.preview_modes,
-        })
-        response['X-Wagtail-Preview'] = 'error'
-        return response
-
-
-def preview(request):
-    """
-    The HTML of a previewed page is written to the destination browser window using document.write.
-    This overwrites any previous content in the window, while keeping its URL intact. This in turn
-    means that any content we insert that happens to trigger an HTTP request, such as an image or
-    stylesheet tag, will report that original URL as its referrer.
-
-    In Webkit browsers, a new window opened with window.open('', 'window_name') will have a location
-    of 'about:blank', causing it to omit the Referer header on those HTTP requests. This means that
-    any third-party font services that use the Referer header for access control will refuse to
-    serve us.
-
-    So, instead, we need to open the window on some arbitrary URL on our domain. (Provided that's
-    also the same domain as our editor JS code, the browser security model will happily allow us to
-    document.write over the page in question.)
-
-    This, my friends, is that arbitrary URL.
-
-    Since we're going to this trouble, we'll also take the opportunity to display a spinner on the
-    placeholder page, providing some much-needed visual feedback.
-    """
-    return render(request, 'wagtailadmin/pages/preview.html')
-
-
-def preview_loading(request):
-    """
-    This page is blank, but must be real HTML so its DOM can be written to once the preview of the page has rendered
-    """
-    return HttpResponse("<html><head><title></title></head><body></body></html>")
+            form.instance.full_clean()
+        return form
 
 
 def unpublish(request, page_id):
     page = get_object_or_404(Page, id=page_id).specific
-    if not page.permissions_for_user(request.user).can_unpublish():
+
+    user_perms = UserPagePermissionsProxy(request.user)
+    if not user_perms.for_page(page).can_unpublish():
         raise PermissionDenied
 
+    next_url = get_valid_next_url_from_request(request)
+
     if request.method == 'POST':
+        include_descendants = request.POST.get("include_descendants", False)
+
         page.unpublish()
 
-        messages.success(request, _("Page '{0}' unpublished.").format(page.title), buttons=[
+        if include_descendants:
+            live_descendant_pages = page.get_descendants().live().specific()
+            for live_descendant_page in live_descendant_pages:
+                if user_perms.for_page(live_descendant_page).can_unpublish():
+                    live_descendant_page.unpublish()
+
+        messages.success(request, _("Page '{0}' unpublished.").format(page.get_admin_display_title()), buttons=[
             messages.button(reverse('wagtailadmin_pages:edit', args=(page.id,)), _('Edit'))
         ])
 
+        if next_url:
+            return redirect(next_url)
         return redirect('wagtailadmin_explore', page.get_parent().id)
 
     return render(request, 'wagtailadmin/pages/confirm_unpublish.html', {
         'page': page,
+        'next': next_url,
+        'live_descendant_count': page.get_descendants().live().count(),
     })
 
 
@@ -537,6 +720,9 @@ def move_choose_destination(request, page_to_move_id, viewed_page_id=None):
 
         child_pages.append(target)
 
+    # Pagination
+    paginator, child_pages = paginate(request, child_pages, per_page=50)
+
     return render(request, 'wagtailadmin/pages/move_choose_destination.html', {
         'page_to_move': page_to_move,
         'viewed_page': viewed_page,
@@ -550,13 +736,12 @@ def move_confirm(request, page_to_move_id, destination_id):
     if not page_to_move.permissions_for_user(request.user).can_move_to(destination):
         raise PermissionDenied
 
-    if request.POST:
+    if request.method == 'POST':
         # any invalid moves *should* be caught by the permission check above,
         # so don't bother to catch InvalidMoveToDescendant
-
         page_to_move.move(destination, pos='last-child')
 
-        messages.success(request, _("Page '{0}' moved.").format(page_to_move.title), buttons=[
+        messages.success(request, _("Page '{0}' moved.").format(page_to_move.get_admin_display_title()), buttons=[
             messages.button(reverse('wagtailadmin_pages:edit', args=(page_to_move.id,)), _('Edit'))
         ])
 
@@ -575,7 +760,7 @@ def set_page_position(request, page_to_move_id):
     if not parent_page.permissions_for_user(request.user).can_reorder_children():
         raise PermissionDenied
 
-    if request.POST:
+    if request.method == 'POST':
         # Get position parameter
         position = request.GET.get('position', None)
 
@@ -607,6 +792,7 @@ def set_page_position(request, page_to_move_id):
     return HttpResponse('')
 
 
+@user_passes_test(user_has_any_page_permission)
 def copy(request, page_id):
     page = Page.objects.get(id=page_id)
 
@@ -619,6 +805,13 @@ def copy(request, page_id):
     # Create the form
     form = CopyForm(request.POST or None, page=page, can_publish=can_publish)
 
+    next_url = get_valid_next_url_from_request(request)
+
+    for fn in hooks.get_hooks('before_copy_page'):
+        result = fn(request, page)
+        if hasattr(result, 'status_code'):
+            return result
+
     # Check if user is submitting
     if request.method == 'POST':
         # Prefill parent_page in case the form is invalid (as prepopulated value for the form field,
@@ -630,8 +823,8 @@ def copy(request, page_id):
             if form.cleaned_data['new_parent_page']:
                 parent_page = form.cleaned_data['new_parent_page']
 
-            # Make sure this user has permission to add subpages on the parent
-            if not parent_page.permissions_for_user(request.user).can_add_subpage():
+            if not page.permissions_for_user(request.user).can_copy_to(parent_page,
+                                                                       form.cleaned_data.get('copy_subpages')):
                 raise PermissionDenied
 
             # Re-check if the user has permission to publish subpages on the new parent
@@ -653,48 +846,30 @@ def copy(request, page_id):
             if form.cleaned_data.get('copy_subpages'):
                 messages.success(
                     request,
-                    _("Page '{0}' and {1} subpages copied.").format(page.title, new_page.get_descendants().count())
+                    _("Page '{0}' and {1} subpages copied.").format(page.get_admin_display_title(), new_page.get_descendants().count())
                 )
             else:
-                messages.success(request, _("Page '{0}' copied.").format(page.title))
+                messages.success(request, _("Page '{0}' copied.").format(page.get_admin_display_title()))
+
+            for fn in hooks.get_hooks('after_copy_page'):
+                result = fn(request, page, new_page)
+                if hasattr(result, 'status_code'):
+                    return result
 
             # Redirect to explore of parent page
+            if next_url:
+                return redirect(next_url)
             return redirect('wagtailadmin_explore', parent_page.id)
 
     return render(request, 'wagtailadmin/pages/copy.html', {
         'page': page,
         'form': form,
+        'next': next_url,
     })
 
 
-PAGE_EDIT_HANDLERS = {}
-
-
-def get_page_edit_handler(page_class):
-    if page_class not in PAGE_EDIT_HANDLERS:
-        if hasattr(page_class, 'edit_handler'):
-            # use the edit handler specified on the page class
-            edit_handler = page_class.edit_handler
-        else:
-            # construct a TabbedInterface made up of content_panels, promote_panels
-            # and settings_panels, skipping any which are empty
-            tabs = []
-
-            if page_class.content_panels:
-                tabs.append(ObjectList(page_class.content_panels, heading=_('Content')))
-            if page_class.promote_panels:
-                tabs.append(ObjectList(page_class.promote_panels, heading=_('Promote')))
-            if page_class.settings_panels:
-                tabs.append(ObjectList(page_class.settings_panels, heading=_('Settings'), classname="settings"))
-
-            edit_handler = TabbedInterface(tabs)
-
-        PAGE_EDIT_HANDLERS[page_class] = edit_handler.bind_to_model(page_class)
-
-    return PAGE_EDIT_HANDLERS[page_class]
-
-
 @vary_on_headers('X-Requested-With')
+@user_passes_test(user_has_any_page_permission)
 def search(request):
     pages = []
     q = None
@@ -704,7 +879,7 @@ def search(request):
         if form.is_valid():
             q = form.cleaned_data['q']
 
-            pages = Page.objects.all().prefetch_related('content_type').search(q, fields=['title'])
+            pages = Page.objects.all().prefetch_related('content_type').search(q)
             paginator, pages = paginate(request, pages)
     else:
         form = SearchForm()
@@ -730,16 +905,17 @@ def approve_moderation(request, revision_id):
         raise PermissionDenied
 
     if not revision.submitted_for_moderation:
-        messages.error(request, _("The page '{0}' is not currently awaiting moderation.").format(revision.page.title))
+        messages.error(request, _("The page '{0}' is not currently awaiting moderation.").format(revision.page.get_admin_display_title()))
         return redirect('wagtailadmin_home')
 
     if request.method == 'POST':
         revision.approve_moderation()
-        messages.success(request, _("Page '{0}' published.").format(revision.page.title), buttons=[
-            messages.button(revision.page.url, _('View live')),
+        messages.success(request, _("Page '{0}' published.").format(revision.page.get_admin_display_title()), buttons=[
+            messages.button(revision.page.url, _('View live'), new_window=True),
             messages.button(reverse('wagtailadmin_pages:edit', args=(revision.page.id,)), _('Edit'))
         ])
-        send_notification(revision.id, 'approved', request.user.id)
+        if not send_notification(revision.id, 'approved', request.user.pk):
+            messages.error(request, _("Failed to send approval notifications"))
 
     return redirect('wagtailadmin_home')
 
@@ -750,15 +926,16 @@ def reject_moderation(request, revision_id):
         raise PermissionDenied
 
     if not revision.submitted_for_moderation:
-        messages.error(request, _("The page '{0}' is not currently awaiting moderation.").format(revision.page.title))
+        messages.error(request, _("The page '{0}' is not currently awaiting moderation.").format(revision.page.get_admin_display_title()))
         return redirect('wagtailadmin_home')
 
     if request.method == 'POST':
         revision.reject_moderation()
-        messages.success(request, _("Page '{0}' rejected for publication.").format(revision.page.title), buttons=[
+        messages.success(request, _("Page '{0}' rejected for publication.").format(revision.page.get_admin_display_title()), buttons=[
             messages.button(reverse('wagtailadmin_pages:edit', args=(revision.page.id,)), _('Edit'))
         ])
-        send_notification(revision.id, 'rejected', request.user.id)
+        if not send_notification(revision.id, 'rejected', request.user.pk):
+            messages.error(request, _("Failed to send rejection notifications"))
 
     return redirect('wagtailadmin_home')
 
@@ -770,7 +947,7 @@ def preview_for_moderation(request, revision_id):
         raise PermissionDenied
 
     if not revision.submitted_for_moderation:
-        messages.error(request, _("The page '{0}' is not currently awaiting moderation.").format(revision.page.title))
+        messages.error(request, _("The page '{0}' is not currently awaiting moderation.").format(revision.page.get_admin_display_title()))
         return redirect('wagtailadmin_home')
 
     page = revision.as_page_object()
@@ -796,7 +973,7 @@ def lock(request, page_id):
         page.locked = True
         page.save()
 
-        messages.success(request, _("Page '{0}' is now locked.").format(page.title))
+        messages.success(request, _("Page '{0}' is now locked.").format(page.get_admin_display_title()))
 
     # Redirect
     redirect_to = request.POST.get('next', None)
@@ -820,7 +997,7 @@ def unlock(request, page_id):
         page.locked = False
         page.save()
 
-        messages.success(request, _("Page '{0}' is now unlocked.").format(page.title))
+        messages.success(request, _("Page '{0}' is now unlocked.").format(page.get_admin_display_title()))
 
     # Redirect
     redirect_to = request.POST.get('next', None)
@@ -828,3 +1005,125 @@ def unlock(request, page_id):
         return redirect(redirect_to)
     else:
         return redirect('wagtailadmin_explore', page.get_parent().id)
+
+
+@user_passes_test(user_has_any_page_permission)
+def revisions_index(request, page_id):
+    page = get_object_or_404(Page, id=page_id).specific
+
+    # Get page ordering
+    ordering = request.GET.get('ordering', '-created_at')
+    if ordering not in ['created_at', '-created_at', ]:
+        ordering = '-created_at'
+
+    revisions = page.revisions.order_by(ordering)
+
+    paginator, revisions = paginate(request, revisions)
+
+    return render(request, 'wagtailadmin/pages/revisions/index.html', {
+        'page': page,
+        'ordering': ordering,
+        'pagination_query_params': "ordering=%s" % ordering,
+        'revisions': revisions,
+    })
+
+
+def revisions_revert(request, page_id, revision_id):
+    page = get_object_or_404(Page, id=page_id).specific
+    page_perms = page.permissions_for_user(request.user)
+    if not page_perms.can_edit():
+        raise PermissionDenied
+
+    revision = get_object_or_404(page.revisions, id=revision_id)
+    revision_page = revision.as_page_object()
+
+    content_type = ContentType.objects.get_for_model(page)
+    page_class = content_type.model_class()
+
+    edit_handler_class = page_class.get_edit_handler()
+    form_class = edit_handler_class.get_form_class(page_class)
+
+    form = form_class(instance=revision_page)
+    edit_handler = edit_handler_class(instance=revision_page, form=form)
+
+    user_avatar = render_to_string('wagtailadmin/shared/user_avatar.html', {'user': revision.user})
+
+    messages.warning(request, mark_safe(
+        _("You are viewing a previous revision of this page from <b>%(created_at)s</b> by %(user)s") % {
+            'created_at': revision.created_at.strftime("%d %b %Y %H:%M"),
+            'user': user_avatar,
+        }
+    ))
+
+    return render(request, 'wagtailadmin/pages/edit.html', {
+        'page': page,
+        'revision': revision,
+        'is_revision': True,
+        'content_type': content_type,
+        'edit_handler': edit_handler,
+        'errors_debug': None,
+        'preview_modes': page.preview_modes,
+        'form': form,  # Used in unit tests
+    })
+
+
+@user_passes_test(user_has_any_page_permission)
+def revisions_view(request, page_id, revision_id):
+    page = get_object_or_404(Page, id=page_id).specific
+    revision = get_object_or_404(page.revisions, id=revision_id)
+    revision_page = revision.as_page_object()
+
+    return revision_page.serve_preview(page.dummy_request(request), page.default_preview_mode)
+
+
+def revisions_compare(request, page_id, revision_id_a, revision_id_b):
+    page = get_object_or_404(Page, id=page_id).specific
+
+    # Get revision to compare from
+    if revision_id_a == 'live':
+        if not page.live:
+            raise Http404
+
+        revision_a = page
+        revision_a_heading = _("Live")
+    elif revision_id_a == 'earliest':
+        revision_a = page.revisions.order_by('created_at', 'id').first()
+        if revision_a:
+            revision_a = revision_a.as_page_object()
+            revision_a_heading = _("Earliest")
+        else:
+            raise Http404
+    else:
+        revision_a = get_object_or_404(page.revisions, id=revision_id_a).as_page_object()
+        revision_a_heading = str(get_object_or_404(page.revisions, id=revision_id_a).created_at)
+
+    # Get revision to compare to
+    if revision_id_b == 'live':
+        if not page.live:
+            raise Http404
+
+        revision_b = page
+        revision_b_heading = _("Live")
+    elif revision_id_b == 'latest':
+        revision_b = page.revisions.order_by('created_at', 'id').last()
+        if revision_b:
+            revision_b = revision_b.as_page_object()
+            revision_b_heading = _("Latest")
+        else:
+            raise Http404
+    else:
+        revision_b = get_object_or_404(page.revisions, id=revision_id_b).as_page_object()
+        revision_b_heading = str(get_object_or_404(page.revisions, id=revision_id_b).created_at)
+
+    comparison = page.get_edit_handler().get_comparison()
+    comparison = [comp(revision_a, revision_b) for comp in comparison]
+    comparison = [comp for comp in comparison if comp.has_changed()]
+
+    return render(request, 'wagtailadmin/pages/revisions/compare.html', {
+        'page': page,
+        'revision_a_heading': revision_a_heading,
+        'revision_a': revision_a,
+        'revision_b_heading': revision_b_heading,
+        'revision_b': revision_b,
+        'comparison': comparison,
+    })

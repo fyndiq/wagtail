@@ -1,40 +1,31 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
 
+import warnings
 from collections import OrderedDict
 
 from django.conf.urls import url
-from django.http import Http404
 from django.core.urlresolvers import reverse
-from django.apps import apps
-
+from django.http import Http404
 from rest_framework import status
+from rest_framework.renderers import BrowsableAPIRenderer, JSONRenderer
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
-from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 
+from wagtail.api import APIField
 from wagtail.wagtailcore.models import Page
-from wagtail.wagtailimages.models import get_image_model
-from wagtail.wagtaildocs.models import Document
 from wagtail.wagtailcore.utils import resolve_model_string
+from wagtail.wagtaildocs.models import get_document_model
+from wagtail.wagtailimages import get_image_model
 
-from .filters import (
-    FieldsFilter, OrderingFilter, SearchFilter,
-    ChildOfFilter, DescendantOfFilter
-)
+from .filters import ChildOfFilter, DescendantOfFilter, FieldsFilter, OrderingFilter, SearchFilter
 from .pagination import WagtailPagination
-from .serializers import BaseSerializer, PageSerializer, DocumentSerializer, ImageSerializer, get_serializer_class
+from .serializers import (
+    BaseSerializer, DocumentSerializer, ImageSerializer, PageSerializer, get_serializer_class)
 from .utils import BadRequestError
 
 
 class BaseAPIEndpoint(GenericViewSet):
-    renderer_classes = [JSONRenderer]
-
-    # The BrowsableAPIRenderer requires rest_framework to be installed
-    # Remove this check in Wagtail 1.4 as rest_framework will be required
-    # RemovedInWagtail14Warning
-    if apps.is_installed('rest_framework'):
-        renderer_classes.append(BrowsableAPIRenderer)
-
+    renderer_classes = [JSONRenderer, BrowsableAPIRenderer]
     pagination_class = WagtailPagination
     base_serializer_class = BaseSerializer
     filter_backends = []
@@ -91,7 +82,23 @@ class BaseAPIEndpoint(GenericViewSet):
         if hasattr(model, 'api_fields'):
             api_fields.extend(model.api_fields)
 
-        return api_fields
+        # Remove any new-style API field configs (only supported in v2)
+        def convert_api_fields(fields):
+            for field in fields:
+                if isinstance(field, APIField):
+                    warnings.warn(
+                        "class-based api_fields are not supported by the v1 API module. "
+                        "Please update the .api_fields attribute of {}.{} or update to the "
+                        "v2 API.".format(model._meta.app_label, model.__name__)
+                    )
+
+                    # Ignore fields with custom serializers
+                    if field.serializer is None:
+                        yield field.name
+                else:
+                    yield field
+
+        return list(convert_api_fields(api_fields))
 
     def check_query_parameters(self, queryset):
         """
@@ -250,4 +257,4 @@ class DocumentsAPIEndpoint(BaseAPIEndpoint):
     filter_backends = [FieldsFilter, OrderingFilter, SearchFilter]
     extra_api_fields = ['title', 'tags']
     name = 'documents'
-    model = Document
+    model = get_document_model()

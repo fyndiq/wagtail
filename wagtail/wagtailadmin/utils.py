@@ -1,18 +1,54 @@
+# -*- coding: utf-8 -*-
+from __future__ import absolute_import, unicode_literals
+
+import logging
 from functools import wraps
 
-from django.template.loader import render_to_string
-from django.core.mail import send_mail as django_send_mail
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import PermissionDenied
+from django.core.mail import send_mail as django_send_mail
+from django.db.models import Count, Q
 from django.shortcuts import redirect
+from django.template.loader import render_to_string
 from django.utils.translation import ugettext as _
-
+from django.utils.translation import override, ugettext_lazy
 from modelcluster.fields import ParentalKey
+from taggit.models import Tag
 
-from wagtail.wagtailcore.models import Page, PageRevision, GroupPagePermission
+from wagtail.wagtailcore.models import GroupPagePermission, Page, PageRevision
 from wagtail.wagtailusers.models import UserProfile
-from wagtail.utils.compat import get_related_model
+
+logger = logging.getLogger('wagtail.admin')
+
+# Wagtail languages with >=90% coverage
+# This list is manually maintained
+WAGTAILADMIN_PROVIDED_LANGUAGES = [
+    ('ca', ugettext_lazy('Catalan')),
+    ('de', ugettext_lazy('German')),
+    ('el', ugettext_lazy('Greek')),
+    ('en', ugettext_lazy('English')),
+    ('es', ugettext_lazy('Spanish')),
+    ('fi', ugettext_lazy('Finnish')),
+    ('fr', ugettext_lazy('French')),
+    ('gl', ugettext_lazy('Galician')),
+    ('is-is', ugettext_lazy('Icelandic')),
+    ('it', ugettext_lazy('Italian')),
+    ('lt', ugettext_lazy('Lithuanian')),
+    ('nb', ugettext_lazy('Norwegian Bokmål')),
+    ('nl-nl', ugettext_lazy('Netherlands Dutch')),
+    ('pl', ugettext_lazy('Polish')),
+    ('pt-br', ugettext_lazy('Brazilian Portuguese')),
+    ('pt-pt', ugettext_lazy('Portuguese')),
+    ('ro', ugettext_lazy('Romanian')),
+    ('ru', ugettext_lazy('Russian')),
+    ('zh-cn', ugettext_lazy('Chinese (China)')),
+]
+
+
+def get_available_admin_languages():
+    return getattr(settings, 'WAGTAILADMIN_PERMITTED_LANGUAGES', WAGTAILADMIN_PROVIDED_LANGUAGES)
 
 
 def get_object_usage(obj):
@@ -21,12 +57,10 @@ def get_object_usage(obj):
     pages = Page.objects.none()
 
     # get all the relation objects for obj
-    relations = type(obj)._meta.get_all_related_objects(
-        include_hidden=True,
-        include_proxy_eq=True
-    )
+    relations = [f for f in type(obj)._meta.get_fields(include_hidden=True)
+                 if (f.one_to_many or f.one_to_one) and f.auto_created]
     for relation in relations:
-        related_model = get_related_model(relation)
+        related_model = relation.related_model
 
         # if the relation is between obj and a page, get the page
         if issubclass(related_model, Page):
@@ -50,6 +84,16 @@ def get_object_usage(obj):
     return pages
 
 
+def popular_tags_for_model(model, count=10):
+    """Return a queryset of the most frequently used tags used on this model class"""
+    content_type = ContentType.objects.get_for_model(model)
+    return Tag.objects.filter(
+        taggit_taggeditem_items__content_type=content_type
+    ).annotate(
+        item_count=Count('taggit_taggeditem_items')
+    ).order_by('-item_count')[:count]
+
+
 def users_with_page_permission(page, permission_type, include_superusers=True):
     # Get user model
     User = get_user_model()
@@ -57,7 +101,7 @@ def users_with_page_permission(page, permission_type, include_superusers=True):
     # Find GroupPagePermission records of the given type that apply to this page or an ancestor
     ancestors_and_self = list(page.get_ancestors()) + [page]
     perm = GroupPagePermission.objects.filter(permission_type=permission_type, page__in=ancestors_and_self)
-    q = Q(groups__page_permissions=perm)
+    q = Q(groups__page_permissions__in=perm)
 
     # Include superusers
     if include_superusers:
@@ -68,6 +112,9 @@ def users_with_page_permission(page, permission_type, include_superusers=True):
 
 def permission_denied(request):
     """Return a standard 'permission denied' response"""
+    if request.is_ajax():
+        raise PermissionDenied
+
     from wagtail.wagtailadmin import messages
 
     messages.error(request, _('Sorry, you do not have permission to access this area.'))
@@ -125,6 +172,27 @@ def any_permission_required(*perms):
     return user_passes_test(test)
 
 
+class PermissionPolicyChecker(object):
+    """
+    Provides a view decorator that enforces the given permission policy,
+    returning the wagtailadmin 'permission denied' response if permission not granted
+    """
+    def __init__(self, policy):
+        self.policy = policy
+
+    def require(self, action):
+        def test(user):
+            return self.policy.user_has_permission(user, action)
+
+        return user_passes_test(test)
+
+    def require_any(self, *actions):
+        def test(user):
+            return self.policy.user_has_any_permission(user, actions)
+
+        return user_passes_test(test)
+
+
 def send_mail(subject, message, recipient_list, from_email=None, **kwargs):
     if not from_email:
         if hasattr(settings, 'WAGTAILADMIN_NOTIFICATION_FROM_EMAIL'):
@@ -149,12 +217,12 @@ def send_notification(page_revision_id, notification, excluded_user_id):
         # Get submitter
         recipients = [revision.user]
     else:
-        return
+        return False
 
     # Get list of email addresses
     email_recipients = [
         recipient for recipient in recipients
-        if recipient.email and recipient.id != excluded_user_id and getattr(
+        if recipient.email and recipient.pk != excluded_user_id and getattr(
             UserProfile.get_for_user(recipient),
             notification + '_notifications'
         )
@@ -162,10 +230,12 @@ def send_notification(page_revision_id, notification, excluded_user_id):
 
     # Return if there are no email addresses
     if not email_recipients:
-        return
+        return True
 
     # Get template
-    template = 'wagtailadmin/notifications/' + notification + '.html'
+    template_subject = 'wagtailadmin/notifications/' + notification + '_subject.txt'
+    template_text = 'wagtailadmin/notifications/' + notification + '.txt'
+    template_html = 'wagtailadmin/notifications/' + notification + '.html'
 
     # Common context to template
     context = {
@@ -174,12 +244,53 @@ def send_notification(page_revision_id, notification, excluded_user_id):
     }
 
     # Send emails
+    sent_count = 0
     for recipient in email_recipients:
-        # update context with this recipient
-        context["user"] = recipient
+        try:
+            # update context with this recipient
+            context["user"] = recipient
 
-        # Get email subject and content
-        email_subject, email_content = render_to_string(template, context).split('\n', 1)
+            # Translate text to the recipient language settings
+            with override(recipient.wagtail_userprofile.get_preferred_language()):
+                # Get email subject and content
+                email_subject = render_to_string(template_subject, context).strip()
+                email_content = render_to_string(template_text, context).strip()
 
-        # Send email
-        send_mail(email_subject, email_content, [recipient.email])
+            kwargs = {}
+            if getattr(settings, 'WAGTAILADMIN_NOTIFICATION_USE_HTML', False):
+                kwargs['html_message'] = render_to_string(template_html, context)
+
+            # Send email
+            send_mail(email_subject, email_content, [recipient.email], **kwargs)
+            sent_count += 1
+        except Exception:
+            logger.exception(
+                "Failed to send notification email '%s' to %s",
+                email_subject, recipient.email
+            )
+
+    return sent_count == len(email_recipients)
+
+
+def user_has_any_page_permission(user):
+    """
+    Check if a user has any permission to add, edit, or otherwise manage any
+    page.
+    """
+    # Can't do nothin if you're not active.
+    if not user.is_active:
+        return False
+
+    # Superusers can do anything.
+    if user.is_superuser:
+        return True
+
+    # At least one of the users groups has a GroupPagePermission.
+    # The user can probably do something.
+    if GroupPagePermission.objects.filter(group__in=user.groups.all()).exists():
+        return True
+
+    # Specific permissions for a page type do not mean anything.
+
+    # No luck! This user can not do anything with pages.
+    return False

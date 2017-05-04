@@ -5,6 +5,7 @@ Advanced topics
 .. toctree::
     :maxdepth: 2
 
+    images/index
     settings
     deploying
     performance
@@ -14,3 +15,4 @@ Advanced topics
     third_party_tutorials
     jinja2
     testing
+    api/index

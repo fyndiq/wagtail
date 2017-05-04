@@ -1,11 +1,13 @@
+from __future__ import absolute_import, unicode_literals
+
 from django.conf.urls import include, url
+from django.contrib.auth.models import Permission
 from django.core import urlresolvers
 from django.utils.translation import ugettext_lazy as _
-from django.contrib.auth.models import Permission
 
-from wagtail.wagtailcore import hooks
 from wagtail.wagtailadmin.menu import MenuItem
-
+from wagtail.wagtailcore import hooks
+from wagtail.wagtailcore.permissions import site_permission_policy
 from wagtail.wagtailsites import urls
 
 
@@ -18,10 +20,8 @@ def register_admin_urls():
 
 class SitesMenuItem(MenuItem):
     def is_shown(self, request):
-        return (
-            request.user.has_perm('wagtailcore.add_site')
-            or request.user.has_perm('wagtailcore.change_site')
-            or request.user.has_perm('wagtailcore.delete_site')
+        return site_permission_policy.user_has_any_permission(
+            request.user, ['add', 'change', 'delete']
         )
 
 

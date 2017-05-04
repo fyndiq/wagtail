@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
 from django.db import models
 from django.utils.six.moves.urllib.parse import urlparse
@@ -8,13 +8,23 @@ from django.utils.translation import ugettext_lazy as _
 class Redirect(models.Model):
     old_path = models.CharField(verbose_name=_("redirect from"), max_length=255, db_index=True)
     site = models.ForeignKey(
-        'wagtailcore.Site', verbose_name=_('site'), null=True, blank=True, related_name='redirects', db_index=True
+        'wagtailcore.Site',
+        verbose_name=_('site'),
+        null=True, blank=True,
+        related_name='redirects',
+        db_index=True,
+        on_delete=models.CASCADE
     )
     is_permanent = models.BooleanField(verbose_name=_("permanent"), default=True, help_text=_(
         "Recommended. Permanent redirects ensure search engines "
         "forget the old page (the 'Redirect from') and index the new page instead."
     ))
-    redirect_page = models.ForeignKey('wagtailcore.Page', verbose_name=_("redirect to a page"), null=True, blank=True)
+    redirect_page = models.ForeignKey(
+        'wagtailcore.Page',
+        verbose_name=_("redirect to a page"),
+        null=True, blank=True,
+        on_delete=models.CASCADE
+    )
     redirect_link = models.URLField(verbose_name=_("redirect to any URL"), blank=True)
 
     @property
@@ -30,9 +40,9 @@ class Redirect(models.Model):
 
     def get_is_permanent_display(self):
         if self.is_permanent:
-            return "permanent"
+            return _("permanent")
         else:
-            return "temporary"
+            return _("temporary")
 
     @classmethod
     def get_for_site(cls, site=None):
@@ -54,7 +64,7 @@ class Redirect(models.Model):
         if not path.startswith('/'):
             path = '/' + path
 
-        if path.endswith('/'):
+        if path.endswith('/') and len(path) > 1:
             path = path[:-1]
 
         # Parameters must be sorted alphabetically

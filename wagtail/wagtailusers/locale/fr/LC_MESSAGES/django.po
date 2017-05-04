@@ -3,16 +3,21 @@
 # This file is distributed under the same license as the PACKAGE package.
 #
 # Translators:
-# Bertrand Bordage <bordage.bertrand@gmail.com>, 2015
+# Axel Haustant, 2016
+# Benoît Vogel <contact@spicy-informatique.com>, 2017
+# Bertrand Bordage <bordage.bertrand@gmail.com>, 2015-2017
+# Léo <leo@naeka.fr>, 2016
 # nahuel, 2014
 # nahuel, 2014
+# pierre marfoure <pierre@onoffdesign.com>, 2016
+# Sebastien Andrivet <sebastien@andrivet.com>, 2016
 msgid ""
 msgstr ""
 "Project-Id-Version: Wagtail\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-12-17 13:55+0000\n"
-"PO-Revision-Date: 2015-12-17 14:00+0000\n"
-"Last-Translator: mattwestcott <matthew@torchbox.com>\n"
+"POT-Creation-Date: 2017-04-19 21:02+0000\n"
+"PO-Revision-Date: 2017-04-20 20:21+0000\n"
+"Last-Translator: Bertrand Bordage <bordage.bertrand@gmail.com>\n"
 "Language-Team: French (http://www.transifex.com/torchbox/wagtail/language/"
 "fr/)\n"
 "MIME-Version: 1.0\n"
@@ -35,12 +40,14 @@ msgstr "Un utilisateur avec cet identifiant existe déjà."
 msgid "The two password fields didn't match."
 msgstr "Les deux champs mot de passe ne correspondent pas."
 
-msgid "Administrator"
-msgstr "Administrateur"
+msgid "Email"
+msgstr "E-mail"
 
-msgid "If ticked, this user has the ability to manage user accounts."
-msgstr ""
-"Si coché, cet utilisateur aura la capacité de gérer les comptes utilisateurs."
+msgid "First Name"
+msgstr "Prénom"
+
+msgid "Last Name"
+msgstr "Nom"
 
 msgid "Password"
 msgstr "Mot de passe"
@@ -54,42 +61,71 @@ msgstr "Confirmation de mot de passe"
 msgid "Enter the same password as above, for verification."
 msgstr "Entrer le même qu'au dessus, pour vérification."
 
-msgid "Email"
-msgstr "E-mail"
+msgid "Administrator"
+msgstr "Administrateur"
 
-msgid "First Name"
-msgstr "Prénom"
-
-msgid "Last Name"
-msgstr "Nom"
-
-msgid "Administrators have the ability to manage user accounts."
-msgstr "Les administrateurs ont la capacité de gérer les comptes utilisateur."
+msgid "Administrators have full access to manage any object or setting."
+msgstr ""
+"Les administrateurs ont un accès complet pour gérer les objets ou les "
+"réglages."
 
 msgid "A group with that name already exists."
 msgstr "Un groupe avec ce nom existe déjà."
 
+msgid "You cannot have multiple permission records for the same page."
+msgstr "Vous ne pouvez avoir plusieurs permissions pour la même page."
+
+msgid "submitted notifications"
+msgstr "notifications proposées"
+
 msgid "Receive notification when a page is submitted for moderation"
 msgstr "Recevoir une notification quand une page est soumise pour modération"
+
+msgid "approved notifications"
+msgstr "Notifications approuvées"
 
 msgid "Receive notification when your page edit is approved"
 msgstr ""
 "Recevoir une notification quand vos modifications de page sont approuvées"
 
+msgid "rejected notifications"
+msgstr "notifications rejetées"
+
 msgid "Receive notification when your page edit is rejected"
 msgstr ""
 "Recevoir une notification quand vos modifications de page sont rejetées"
+
+msgid "preferred language"
+msgstr "langue préférée"
+
+msgid "Select language for the admin"
+msgstr "Sélectionnez la langue de l’interface d’administration"
+
+msgid "user profile"
+msgstr "compte utilisateur"
 
 msgid "Delete group"
 msgstr "Supprimer le groupe"
 
 #, python-format
 msgid ""
-"The group '%(group_name)s' has <strong>%(group_user_count)s</strong> users "
-"assigned."
-msgstr ""
-"Le groupe '%(group_name)s' contient <strong>%(group_user_count)s</strong> "
-"utilisateurs."
+"\n"
+"                The group '%(group_name)s' has <strong>%(group_user_count)s</"
+"strong> member.\n"
+"            "
+msgid_plural ""
+"\n"
+"                The group '%(group_name)s' has <strong>%(group_user_count)s</"
+"strong> members.\n"
+"            "
+msgstr[0] ""
+"\n"
+"Le groupe '%(group_name)s' a <strong>%(group_user_count)s</strong> "
+"utilisateur membre."
+msgstr[1] ""
+"\n"
+"Le groupe '%(group_name)s' a <strong>%(group_user_count)s</strong> "
+"utilisateurs membres."
 
 msgid ""
 "Deleting this group will revoke this group's permissions from all member "
@@ -99,7 +135,7 @@ msgstr ""
 "tous les utilisateurs membres."
 
 msgid "Are you sure you want to delete this group?"
-msgstr "Êtes-vous sûr de vouloir supprimer ce groupe ?"
+msgstr "Êtes-vous sûr(e) de vouloir supprimer ce groupe ?"
 
 msgid "Yes, delete"
 msgstr "Oui, supprimer"
@@ -137,9 +173,6 @@ msgstr "Permissions de page"
 msgid "Page"
 msgstr "Page"
 
-msgid "Permission type"
-msgstr "Type de permission"
-
 msgid "Add a page permission"
 msgstr "Ajouter une permission de page"
 
@@ -154,8 +187,14 @@ msgid ""
 "There are no groups configured. Why not <a href="
 "\"%(wagtailusers_create_group_url)s\">add some</a>?"
 msgstr ""
-"Il n'y a pas de groupe configuré. Pourquoi ne pas en <a href="
-"\"%(wagtailusers_create_group_url)s\">ajouter un</a> ?"
+"Il n'y a pas de groupe configuré. Pourquoi ne pas <a href="
+"\"%(wagtailusers_create_group_url)s\">en ajouter un</a> ?"
+
+msgid "Delete user"
+msgstr "Supprimer l'utilisateur"
+
+msgid "Are you sure you want to delete this user?"
+msgstr "Êtes-vous sûr de vouloir supprimer cet utilisateur ?"
 
 msgid "Add user"
 msgstr "Ajouter l'utilisateur"
@@ -218,8 +257,8 @@ msgid ""
 "There are no users configured. Why not <a href=\"%(wagtailusers_create_url)s"
 "\">add some</a>?"
 msgstr ""
-"Il n'y a pas d'utilisateur configuré. Pourquoi ne pas en <a href="
-"\"%(wagtailusers_create_url)s\">ajouter</a>?"
+"Il n'y a pas d'utilisateur configuré. Pourquoi ne pas <a href="
+"\"%(wagtailusers_create_url)s\">en ajouter</a> ?"
 
 msgid "Search groups"
 msgstr "Rechercher des groupes"
@@ -261,3 +300,16 @@ msgstr "Utilisateur '{0}' mis à jour."
 
 msgid "The user could not be saved due to errors."
 msgstr "L'utilisateur ne peut être enregistré du fait d'erreurs."
+
+#, python-brace-format
+msgid "User '{0}' deleted."
+msgstr "Utilisateur '{0}' supprimé."
+
+msgid "Groups"
+msgstr "Groupes"
+
+msgid "Edit this user"
+msgstr "Modifier cet utilisateur"
+
+msgid "Delete this user"
+msgstr "Supprimer cet utilisateur"

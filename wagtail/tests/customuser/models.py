@@ -1,14 +1,17 @@
+from __future__ import absolute_import, unicode_literals
+
 import sys
 
+from django.contrib.auth.models import (
+    AbstractBaseUser, BaseUserManager, Group, Permission, PermissionsMixin)
 from django.db import models
 
-from django.contrib.auth.models import (
-    Group, Permission, AbstractBaseUser, PermissionsMixin, BaseUserManager)
+from .fields import ConvertedValueField
 
 
 class CustomUserManager(BaseUserManager):
     def _create_user(self, username, email, password,
-                     is_staff, is_superuser, **extra_fields):
+                     is_staff, is_superuser, is_active=True, **extra_fields):
         """
         Creates and saves a User with the given username, email and password.
         """
@@ -16,7 +19,7 @@ class CustomUserManager(BaseUserManager):
             raise ValueError('The given username must be set')
         email = self.normalize_email(email)
         user = self.model(username=username, email=email,
-                          is_staff=is_staff, is_active=True,
+                          is_staff=is_staff, is_active=is_active,
                           is_superuser=is_superuser, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -32,12 +35,15 @@ class CustomUserManager(BaseUserManager):
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
+    identifier = ConvertedValueField(primary_key=True)
     username = models.CharField(max_length=100, unique=True)
     email = models.EmailField(max_length=255, blank=True)
     is_staff = models.BooleanField(default=True)
     is_active = models.BooleanField(default=True)
     first_name = models.CharField(max_length=50, blank=True)
     last_name = models.CharField(max_length=50, blank=True)
+    country = models.CharField(max_length=100, blank=True)
+    attachment = models.FileField(blank=True)
 
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = ['email']
@@ -102,6 +108,7 @@ def steal_method(name):
     if sys.version_info < (3,):
         func = func.__func__
     setattr(EmailUser, name, func)
+
 
 methods = ['get_group_permissions', 'get_all_permissions', 'has_perm',
            'has_perms', 'has_module_perms']

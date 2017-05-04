@@ -3,16 +3,19 @@
 # This file is distributed under the same license as the PACKAGE package.
 #
 # Translators:
+# Ettore Atalan <atalanttore@googlemail.com>, 2017
+# Henrik Kröger <hedwig@riseup.net>, 2016
 # Johannes Spielmann <j@spielmannsolutions.com>, 2014-2015
 # Max Pfeiffer <max.pfeiffer@alp-phone.ch>, 2015
+# Moritz Pfeiffer <moritz@alp-phone.ch>, 2016-2017
 # Tammo van Lessen <tvanlessen@gmail.com>, 2015
 msgid ""
 msgstr ""
 "Project-Id-Version: Wagtail\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-12-17 13:54+0000\n"
-"PO-Revision-Date: 2015-12-17 14:01+0000\n"
-"Last-Translator: mattwestcott <matthew@torchbox.com>\n"
+"POT-Creation-Date: 2017-04-19 21:02+0000\n"
+"PO-Revision-Date: 2017-04-20 00:04+0000\n"
+"Last-Translator: Ettore Atalan <atalanttore@googlemail.com>\n"
 "Language-Team: German (http://www.transifex.com/torchbox/wagtail/language/"
 "de/)\n"
 "MIME-Version: 1.0\n"
@@ -20,6 +23,21 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Language: de\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "{} submissions"
+msgstr "{} Abgaben"
+
+msgid "Date from"
+msgstr "Datum von"
+
+msgid "Date to"
+msgstr "Datum bis"
+
+#, python-format
+msgid "There is another field with the label %s, please change one of them."
+msgstr ""
+"Es gibt ein weiteres Feld mit der Bezeichnung %s, bitte ändern Sie eines der "
+"beiden."
 
 msgid "Single line text"
 msgstr "Einzeiliger Text"
@@ -54,8 +72,26 @@ msgstr "Datum"
 msgid "Date/time"
 msgstr "Zeitpunkt"
 
+msgid "submit time"
+msgstr "Absendezeitpunkt"
+
+msgid "form submission"
+msgstr "Formularabsendung"
+
+msgid "label"
+msgstr "Beschriftung"
+
 msgid "The label of the form field"
 msgstr "Die Bezeichnung dieses Formularfeldes"
+
+msgid "field type"
+msgstr "Feldtyp"
+
+msgid "required"
+msgstr "Erforderlich"
+
+msgid "choices"
+msgstr "Auswahl"
 
 msgid ""
 "Comma separated list of choices. Only applicable in checkboxes, radio and "
@@ -64,25 +100,65 @@ msgstr ""
 "Liste der Wahlmöglichkeiten, durch Kommas getrennt. Gilt nur für Checkboxen, "
 "Dropdowns und Radiobuttons."
 
+msgid "default value"
+msgstr "Vorgabewert"
+
 msgid "Default value. Comma separated values supported for checkboxes."
 msgstr ""
 "Standardwert. Werte für Checkboxen können durch Kommas getrennt werden."
 
-msgid "Optional - form submissions will be emailed to this address"
-msgstr "Optional - eingereichte Formulare werden an diese Adresse geschickt"
+msgid "help text"
+msgstr "Hilfetext"
+
+msgid "Submission date"
+msgstr "Einreichungsdatum"
+
+msgid "to address"
+msgstr "An-Adresse"
+
+msgid ""
+"Optional - form submissions will be emailed to these addresses. Separate "
+"multiple addresses by comma."
+msgstr ""
+"Optional – eingereichte Formulare werden an diese Adresse geschickt. Trennen "
+"Sie mehrere Adressen mit einem Komma."
+
+msgid "from address"
+msgstr "Von-Adresse"
+
+msgid "subject"
+msgstr "Betreff"
 
 #, python-format
-msgid "Delete %(title)s"
-msgstr "%(title)s löschen"
+msgid "Delete form data %(title)s"
+msgstr "Formulardaten löschen %(title)s"
+
+msgid "Delete form data"
+msgstr "Formulardaten löschen"
+
+msgid ""
+"\n"
+"                Are you sure you want to delete this form submission?\n"
+"            "
+msgid_plural ""
+"\n"
+"                Are you sure you want to delete these form submissions?\n"
+"            "
+msgstr[0] ""
+"\n"
+"Sind Sie sicher, dass Sie diese Formular-Eingabe löschen wollen?"
+msgstr[1] ""
+"\n"
+"Sind Sie sicher, dass Sie diese Formular-Eingaben löschen wollen?"
 
 msgid "Delete"
 msgstr "Löschen"
 
-msgid "Are you sure you want to delete this form submission?"
-msgstr "Sind Sie sicher, dass Sie diese Formular Vorlage löschen wollen?"
+msgid "Total submissions"
+msgstr "Anzahl Abgaben"
 
-msgid "Delete it"
-msgstr "Löschen"
+msgid "Latest submission"
+msgstr "Neueste Abgabe"
 
 msgid "Forms"
 msgstr "Formulare"
@@ -106,7 +182,7 @@ msgstr "CSV herunterladen"
 
 #, python-format
 msgid "There have been no submissions of the '%(title)s' form."
-msgstr "Für '%(title)s' wurde bisher nichts eingereicht."
+msgstr "Für ‚%(title)s‘ wurde bisher nichts eingereicht."
 
 msgid "Title"
 msgstr "Titel"
@@ -114,14 +190,14 @@ msgstr "Titel"
 msgid "Origin"
 msgstr "Ursprung"
 
-msgid "Submission Date"
-msgstr "Einreichungsdatum"
-
-msgid "Actions"
-msgstr "Aktionen"
+msgid "Delete selected submissions"
+msgstr "Ausgewählte Abgaben löschen"
 
 msgid "No form pages have been created."
 msgstr "Es wurden keine Formularseiten angelegt."
 
-msgid "Submission deleted."
-msgstr "Vorlage gelöscht."
+#, python-format
+msgid "One submission has been deleted."
+msgid_plural "%(count)d submissions have been deleted."
+msgstr[0] "Eine Formular-Eingabe wurde gelöscht."
+msgstr[1] "%(count)d Formular-Eingaben wurden gelöscht."

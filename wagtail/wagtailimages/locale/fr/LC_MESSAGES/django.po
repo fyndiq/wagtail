@@ -4,17 +4,20 @@
 #
 # Translators:
 # Adrien <laadrien@gmail.com>, 2014
-# Bertrand Bordage <bordage.bertrand@gmail.com>, 2015
+# Benoît Vogel <contact@spicy-informatique.com>, 2016
+# Bertrand Bordage <bordage.bertrand@gmail.com>, 2015-2017
+# Léo <leo@naeka.fr>, 2016
 # nahuel, 2014
 # nahuel, 2014
+# Sebastien Andrivet <sebastien@andrivet.com>, 2016
 # Timothy Allen <flipper@peregrinesalon.com>, 2015
 msgid ""
 msgstr ""
 "Project-Id-Version: Wagtail\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-12-17 13:54+0000\n"
-"PO-Revision-Date: 2015-12-17 13:59+0000\n"
-"Last-Translator: mattwestcott <matthew@torchbox.com>\n"
+"POT-Creation-Date: 2017-04-19 21:02+0000\n"
+"PO-Revision-Date: 2017-04-20 20:17+0000\n"
+"Last-Translator: Bertrand Bordage <bordage.bertrand@gmail.com>\n"
 "Language-Team: French (http://www.transifex.com/torchbox/wagtail/language/"
 "fr/)\n"
 "MIME-Version: 1.0\n"
@@ -55,6 +58,15 @@ msgstr ""
 msgid "This file is too big. Maximum filesize %s."
 msgstr "Ce fichier est trop gros. La taille de fichier maximale est %s."
 
+msgid "Full width"
+msgstr "Pleine largeur"
+
+msgid "Left-aligned"
+msgstr "Aligné à gauche"
+
+msgid "Right-aligned"
+msgstr "Aligné à droite"
+
 msgid "Filter"
 msgstr "Filtre"
 
@@ -62,19 +74,19 @@ msgid "Original size"
 msgstr "Taille d'origine"
 
 msgid "Resize to width"
-msgstr "Re-dimensionner en largeur"
+msgstr "Redimensionner en largeur"
 
 msgid "Resize to height"
-msgstr "Re-dimensionner en hauteur"
+msgstr "Redimensionner en hauteur"
 
 msgid "Resize to min"
-msgstr "Re-dimensionner au minimum"
+msgstr "Redimensionner au minimum"
 
 msgid "Resize to max"
-msgstr "Re-dimensionner au maximum"
+msgstr "Redimensionner au maximum"
 
 msgid "Resize to fill"
-msgstr "Re-dimensionner pour occuper tout l'espace"
+msgstr "Redimensionner pour occuper tout l'espace"
 
 msgid "Width"
 msgstr "Largeur"
@@ -84,6 +96,39 @@ msgstr "Hauteur"
 
 msgid "Closeness"
 msgstr "Proximité"
+
+msgid "Add"
+msgstr "Ajouter"
+
+msgid "Add/edit images you own"
+msgstr "Ajouter/modifier vos images"
+
+msgid "Edit"
+msgstr "Modifier"
+
+msgid "Edit any image"
+msgstr "Modifier n’importe quelle image"
+
+msgid "title"
+msgstr "titre"
+
+msgid "file"
+msgstr "fichier"
+
+msgid "width"
+msgstr "largeur"
+
+msgid "height"
+msgstr "hauteur"
+
+msgid "created at"
+msgstr "créé le"
+
+msgid "uploaded by user"
+msgstr "Téléchargé par l'utilisateur"
+
+msgid "tags"
+msgstr "Mots-clés"
 
 msgid "Choose an image"
 msgstr "Choisir une image"
@@ -96,6 +141,9 @@ msgstr "Envoyer"
 
 msgid "Popular tags"
 msgstr "Mots-clés populaires"
+
+msgid "Uploading..."
+msgstr "Téléchargement..."
 
 #, python-format
 msgid ""
@@ -158,7 +206,7 @@ msgid "Delete image"
 msgstr "Supprimer l'image"
 
 msgid "Are you sure you want to delete this image?"
-msgstr "Êtes vous sûr de vouloir supprimer cette image?"
+msgstr "Êtes-vous sûr(e) de vouloir supprimer cette image ?"
 
 msgid "Yes, delete"
 msgstr "Oui, supprimer"
@@ -183,6 +231,9 @@ msgstr ""
 msgid "Current focal point shown"
 msgstr "Point d'intérêt courant tracé"
 
+msgid "Remove focal area"
+msgstr "Retirer la zone d’intérêt"
+
 msgid "URL Generator"
 msgstr "Générateur d'URL"
 
@@ -204,11 +255,19 @@ msgstr "Désolé, aucune image ne correspond à \"<em>%(query_string)s</em>\""
 
 #, python-format
 msgid ""
-"You've not uploaded any images. Why not <a href="
-"\"%(wagtailimages_add_image_url)s\">add one now</a>?"
+"You haven't uploaded any images in this collection. Why not <a href="
+"\"%(wagtailimages_add_image_url)s\">upload one now</a>?"
 msgstr ""
-"Vous n'avez pas encore envoyé d'image. Pourquoi ne pas en <a href="
-"\"%(wagtailimages_add_image_url)s\">ajouter une maintenant</a> ?"
+"Vous n’avez pas encore envoyé d’image dans cette collection. Pourquoi ne pas "
+"<a href=\"%(wagtailimages_add_image_url)s\">en ajouter une maintenant</a> ?"
+
+#, python-format
+msgid ""
+"You haven't uploaded any images. Why not <a href="
+"\"%(wagtailimages_add_image_url)s\">upload one now</a>?"
+msgstr ""
+"Vous n'avez pas encore envoyé d'image. Pourquoi ne pas <a href="
+"\"%(wagtailimages_add_image_url)s\">en ajouter une maintenant</a> ?"
 
 msgid "Generating URL"
 msgstr "Génération d'URL"
@@ -261,6 +320,9 @@ msgstr ""
 msgid "Or choose from your computer"
 msgstr "Ou sélectionner à partir de votre ordinateur"
 
+msgid "Add to collection:"
+msgstr "Ajouter à la collection :"
+
 msgid ""
 "Upload successful. Please update this image with a more appropriate title, "
 "if necessary. You may also delete the image completely if the upload wasn't "
@@ -271,13 +333,29 @@ msgstr ""
 "l'envoi n'était pas nécessaire."
 
 msgid "Sorry, upload failed."
-msgstr "Désolé, L'envoi a échoué."
+msgstr "Désolé, l'envoi a échoué."
+
+msgid "Server Error"
+msgstr "Erreur du serveur"
+
+msgid "Report this error to your webmaster with the following information:"
+msgstr ""
+"Signaler cette erreur à votre webmaster avec les informations suivantes :"
+
+msgid "Image updated."
+msgstr "Image mise à jour."
 
 msgid "Update"
 msgstr "Mettre à jour"
 
 msgid "Delete"
 msgstr "Supprimer"
+
+msgid "Image permissions"
+msgstr "Permissions d’image"
+
+msgid "Add an image permission"
+msgstr "Ajouter une permission d’image"
 
 msgid "Search images"
 msgstr "Rechercher des images"
@@ -290,7 +368,7 @@ msgid "Edit again"
 msgstr "Modifier à nouveau"
 
 msgid "The image could not be saved due to errors."
-msgstr "L'image n'a pas pu être sauvegardée en raison d'erreurs."
+msgstr "L'image ne peut être enregistrée du fait d'erreurs."
 
 msgid ""
 "The source image file could not be found. Please change the source or delete "
@@ -307,11 +385,14 @@ msgstr "Image '{0}' supprimée."
 msgid "Image '{0}' added."
 msgstr "Image '{0}' ajoutée."
 
-msgid "Edit"
-msgstr "Modifier"
-
 msgid "The image could not be created due to errors."
-msgstr "L'image n'a pas pu être créée en raison d'erreurs."
+msgstr "L'image ne peut être créée du fait d'erreurs."
+
+#, python-format
+msgid "%(count)s image"
+msgid_plural "%(count)s images"
+msgstr[0] "%(count)s image"
+msgstr[1] "%(count)s images"
 
 msgid "Choose another image"
 msgstr "Choisir une autre image"

@@ -1,14 +1,64 @@
 from __future__ import absolute_import, unicode_literals
 
-import json
-
+from django.test import TestCase
 from django.utils import six
 
 from wagtail.tests.testapp.models import (
-    BusinessChild, BusinessIndex, BusinessNowherePage, BusinessSubIndex,
-    EventIndex, EventPage, SimplePage, StreamPage)
-from wagtail.tests.utils import WagtailPageTests
+    BusinessChild, BusinessIndex, BusinessNowherePage, BusinessSubIndex, EventIndex, EventPage,
+    SimplePage, StreamPage)
+from wagtail.tests.utils import WagtailPageTests, WagtailTestUtils
 from wagtail.wagtailcore.models import PAGE_MODEL_CLASSES, Page, Site
+
+
+class TestAssertTagInHTML(WagtailTestUtils, TestCase):
+    def test_assert_tag_in_html(self):
+        haystack = """<ul>
+            <li class="normal">hugh</li>
+            <li class="normal">pugh</li>
+            <li class="really important" lang="en"><em>barney</em> mcgrew</li>
+        </ul>"""
+        self.assertTagInHTML('<li lang="en" class="important really">', haystack)
+        self.assertTagInHTML('<li class="normal">', haystack, count=2)
+
+        with self.assertRaises(AssertionError):
+            self.assertTagInHTML('<div lang="en" class="important really">', haystack)
+        with self.assertRaises(AssertionError):
+            self.assertTagInHTML('<li lang="en" class="important really">', haystack, count=2)
+        with self.assertRaises(AssertionError):
+            self.assertTagInHTML('<li lang="en" class="important">', haystack)
+        with self.assertRaises(AssertionError):
+            self.assertTagInHTML('<li lang="en" class="important really" data-extra="boom">', haystack)
+
+    def test_assert_tag_in_html_with_extra_attrs(self):
+        haystack = """<ul>
+            <li class="normal">hugh</li>
+            <li class="normal">pugh</li>
+            <li class="really important" lang="en"><em>barney</em> mcgrew</li>
+        </ul>"""
+        self.assertTagInHTML('<li class="important really">', haystack, allow_extra_attrs=True)
+        self.assertTagInHTML('<li>', haystack, count=3, allow_extra_attrs=True)
+
+        with self.assertRaises(AssertionError):
+            self.assertTagInHTML('<li class="normal" lang="en">', haystack, allow_extra_attrs=True)
+        with self.assertRaises(AssertionError):
+            self.assertTagInHTML('<li class="important really">', haystack, count=2, allow_extra_attrs=True)
+
+    def test_assert_tag_in_template_script(self):
+        haystack = """<html>
+            <script type="text/template">
+                <p class="really important">first template block</p>
+            </script>
+            <script type="text/template">
+                <p class="really important">second template block</p>
+            </script>
+            <p class="normal">not in a script tag</p>
+        </html>"""
+
+        self.assertTagInTemplateScript('<p class="important really">', haystack)
+        self.assertTagInTemplateScript('<p class="important really">', haystack, count=2)
+
+        with self.assertRaises(AssertionError):
+            self.assertTagInTemplateScript('<p class="normal">', haystack)
 
 
 class TestWagtailPageTests(WagtailPageTests):
@@ -46,14 +96,20 @@ class TestWagtailPageTests(WagtailPageTests):
         self.assertTrue(EventIndex.objects.exists())
 
         self.assertCanCreate(self.root, StreamPage, {
-            'title': 'WebDev42',
-            'body': json.dumps([
-                {'type': 'text', 'value': 'Some text'},
-                {'type': 'rich_text', 'value': '<p>Some rich text</p>'},
-            ])})
+            'title': 'Flierp',
+            'body-0-type': 'text',
+            'body-0-value': 'Dit is onze mooie text',
+            'body-0-order': '0',
+            'body-0-deleted': '',
+            'body-1-type': 'rich_text',
+            'body-1-value': '<p>Dit is onze mooie text in een ferrari</p>',
+            'body-1-order': '1',
+            'body-1-deleted': '',
+            'body-count': '2'
+        })
 
     def test_assert_can_create_subpage_rules(self):
-        simple_page = SimplePage(title='Simple Page', slug='simple')
+        simple_page = SimplePage(title='Simple Page', slug='simple', content="hello")
         self.root.add_child(instance=simple_page)
         # This should raise an error, as a BusinessChild can not be created under a SimplePage
         with self.assertRaisesRegex(AssertionError, r'Can not create a tests.businesschild under a tests.simplepage'):

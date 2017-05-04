@@ -3,15 +3,16 @@
 # This file is distributed under the same license as the PACKAGE package.
 #
 # Translators:
-# José Alaguna <alagunajs@gmail.com>, 2015
+# Yusuf (Josè) Luis <alagunajs@gmail.com>, 2015
 # Ragıp Ünal <ragip@ragipunal.com>, 2015
+# Yusuf (Josè) Luis <alagunajs@gmail.com>, 2016-2017
 msgid ""
 msgstr ""
 "Project-Id-Version: Wagtail\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-12-17 13:54+0000\n"
-"PO-Revision-Date: 2015-12-17 13:57+0000\n"
-"Last-Translator: mattwestcott <matthew@torchbox.com>\n"
+"POT-Creation-Date: 2017-04-19 21:02+0000\n"
+"PO-Revision-Date: 2017-04-19 21:05+0000\n"
+"Last-Translator: Matt Westcott <matthew@torchbox.com>\n"
 "Language-Team: Turkish (Turkey) (http://www.transifex.com/torchbox/wagtail/"
 "language/tr_TR/)\n"
 "MIME-Version: 1.0\n"
@@ -20,11 +21,35 @@ msgstr ""
 "Language: tr_TR\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+msgid "None"
+msgstr "Yok"
+
+msgid "You do not have permission to access the admin"
+msgstr "Yönetici'ye erişmek için izniniz yok"
+
+msgid "Scheduled publishing"
+msgstr "Zamanlanmış yayıncılık"
+
+msgid "Common page configuration"
+msgstr "Ortak sayfa yapılandırması"
+
+msgid "Content"
+msgstr "İçerik"
+
+msgid "Promote"
+msgstr "İlerlet"
+
+msgid "Settings"
+msgstr "Ayarlar"
+
 msgid "Search"
 msgstr "Ara"
 
 msgid "Search term"
 msgstr "Arama terimi"
+
+msgid "URL"
+msgstr "BKK"
 
 msgid "Enter password"
 msgstr "Şifre gir"
@@ -40,9 +65,6 @@ msgstr "Hesap"
 
 msgid "Change password"
 msgstr "Şifreni değiştir"
-
-msgid "Change Password"
-msgstr "Şifreni Değiştir"
 
 msgid "Update"
 msgstr "Güncelle"
@@ -130,9 +152,6 @@ msgstr "Gizlilik"
 
 msgid "Private"
 msgstr "Özel"
-
-msgid "Delete it"
-msgstr "Sil"
 
 msgid "Move"
 msgstr "Taşı"
@@ -247,14 +266,11 @@ msgstr "Hesabınız düzeltiliyor"
 msgid "Other searches"
 msgstr "Başka aramalar"
 
-msgid "User bar"
-msgstr "Kullanıcı çubuğu"
-
 msgid "Add a child page"
 msgstr "Alt sayfa ekle"
 
-msgid "Add"
-msgstr "Ekle"
+msgid "Test"
+msgstr "Deney"
 
 #, python-brace-format
 msgid "Page '{0}' deleted."
@@ -271,12 +287,6 @@ msgstr "Sayfa '{0}' taşındı."
 #, python-brace-format
 msgid "Page '{0}' copied."
 msgstr "Sayfa '{0}' kopyalandı."
-
-msgid "Content"
-msgstr "İçerik"
-
-msgid "Settings"
-msgstr "Ayarlar"
 
 msgid "Choose an item"
 msgstr "Bir öğeyi seçin"

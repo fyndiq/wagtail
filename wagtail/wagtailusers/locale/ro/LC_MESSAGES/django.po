@@ -4,15 +4,15 @@
 #
 # Translators:
 # Dan Braghis, 2014
-# Dan Braghis, 2014-2015
+# Dan Braghis, 2014-2016
 # Dan Braghis, 2014
 msgid ""
 msgstr ""
 "Project-Id-Version: Wagtail\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-12-17 13:55+0000\n"
-"PO-Revision-Date: 2015-12-17 14:00+0000\n"
-"Last-Translator: mattwestcott <matthew@torchbox.com>\n"
+"POT-Creation-Date: 2017-04-19 21:02+0000\n"
+"PO-Revision-Date: 2017-04-19 21:08+0000\n"
+"Last-Translator: Matt Westcott <matthew@torchbox.com>\n"
 "Language-Team: Romanian (http://www.transifex.com/torchbox/wagtail/language/"
 "ro/)\n"
 "MIME-Version: 1.0\n"
@@ -34,11 +34,14 @@ msgstr "Un utilizator cu acest nume există deja."
 msgid "The two password fields didn't match."
 msgstr "Câmpurile de parolă nu se potrivesc."
 
-msgid "Administrator"
-msgstr "Administrator"
+msgid "Email"
+msgstr "E-mail"
 
-msgid "If ticked, this user has the ability to manage user accounts."
-msgstr "Acest utilizator poate gestiona conturi de utilizator dacă este bifat."
+msgid "First Name"
+msgstr "Prenume"
+
+msgid "Last Name"
+msgstr "Nume"
 
 msgid "Password"
 msgstr "Parolă"
@@ -52,40 +55,42 @@ msgstr "Confirmare parolă"
 msgid "Enter the same password as above, for verification."
 msgstr "Introduceți aceeași parolă ca mai sus pentru verificare"
 
-msgid "Email"
-msgstr "E-mail"
+msgid "Administrator"
+msgstr "Administrator"
 
-msgid "First Name"
-msgstr "Prenume"
-
-msgid "Last Name"
-msgstr "Nume"
-
-msgid "Administrators have the ability to manage user accounts."
-msgstr "Administratorii pot gestiona conturi de utilizator."
+msgid "Administrators have full access to manage any object or setting."
+msgstr "Administratorii pot gestiona orice obiect sau setare."
 
 msgid "A group with that name already exists."
 msgstr "Un grup cu acest nume există deja."
 
+msgid "You cannot have multiple permission records for the same page."
+msgstr ""
+"Nu puteți avea înregistrări de permisiune multiple pentru aceeași pagină."
+
+msgid "submitted notifications"
+msgstr "notificări depuse"
+
 msgid "Receive notification when a page is submitted for moderation"
 msgstr "Primește o notificăre când o pagină este trimisă pentru moderare"
+
+msgid "approved notifications"
+msgstr "notificări aprobate"
 
 msgid "Receive notification when your page edit is approved"
 msgstr "Primește o notificare când modificarea paginii este aprobată"
 
+msgid "rejected notifications"
+msgstr "notificări respinse"
+
 msgid "Receive notification when your page edit is rejected"
 msgstr "Primește o notificare când modificărea paginii este respinsă"
 
+msgid "user profile"
+msgstr "profil utilizator"
+
 msgid "Delete group"
 msgstr "Șterge grup"
-
-#, python-format
-msgid ""
-"The group '%(group_name)s' has <strong>%(group_user_count)s</strong> users "
-"assigned."
-msgstr ""
-"Grupul '%(group_name)s' are <strong>%(group_user_count)s</strong> "
-"utilizatori alocați."
 
 msgid ""
 "Deleting this group will revoke this group's permissions from all member "
@@ -132,9 +137,6 @@ msgstr "Permisiuni pagină"
 msgid "Page"
 msgstr "Pagină"
 
-msgid "Permission type"
-msgstr "Tip permisiune"
-
 msgid "Add a page permission"
 msgstr "Adaugă permisiune de pagină"
 
@@ -151,6 +153,12 @@ msgid ""
 msgstr ""
 "Nu există nici un grup configurat. De ce să nu <a href="
 "\"%(wagtailusers_create_group_url)s\">adăugați câțiva</a>?"
+
+msgid "Delete user"
+msgstr "Șterge utilizator"
+
+msgid "Are you sure you want to delete this user?"
+msgstr "Sigur doriți să ștergeți acest utilizator?"
 
 msgid "Add user"
 msgstr "Adaugă utilizator"
@@ -258,3 +266,16 @@ msgstr "Utilizatorul '{0}' a fost actualizat."
 
 msgid "The user could not be saved due to errors."
 msgstr "Utilizatorul nu a fost salvat din cauza erorilor."
+
+#, python-brace-format
+msgid "User '{0}' deleted."
+msgstr "Utilizatorul '{0}' a fost șters."
+
+msgid "Groups"
+msgstr "Grupuri"
+
+msgid "Edit this user"
+msgstr "Editează acest utlizator"
+
+msgid "Delete this user"
+msgstr "Șterge acest utlizator"

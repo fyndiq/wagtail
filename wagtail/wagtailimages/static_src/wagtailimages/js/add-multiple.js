@@ -105,9 +105,6 @@ $(function() {
                 itemElement.addClass('upload-success')
 
                 $('.right', itemElement).append(response.form);
-
-                // run tagit enhancement
-                $('.tag_field input', itemElement).tagit(window.tagit_opts);
             } else {
                 itemElement.addClass('upload-failure');
                 $('.right .error_messages', itemElement).append(response.error_message);
@@ -117,7 +114,11 @@ $(function() {
 
         fail: function(e, data) {
             var itemElement = $(data.context);
-            itemElement.addClass('upload-failure');
+            var errorMessage = $('.server-error', itemElement);
+            $('.error-text', errorMessage).text(data.errorThrown);
+            $('.error-code', errorMessage).text(data.jqXHR.status);
+
+            itemElement.addClass('upload-server-error');
         },
 
         always: function(e, data) {

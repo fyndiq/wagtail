@@ -1,12 +1,14 @@
-from django.core import urlresolvers
-from django.conf.urls import include, url
-from django.utils.translation import ugettext_lazy as _
-from django.contrib.auth.models import Permission
+from __future__ import absolute_import, unicode_literals
 
-from wagtail.wagtailcore import hooks
-from wagtail.wagtailredirects import urls
+from django.conf.urls import include, url
+from django.contrib.auth.models import Permission
+from django.core import urlresolvers
+from django.utils.translation import ugettext_lazy as _
 
 from wagtail.wagtailadmin.menu import MenuItem
+from wagtail.wagtailcore import hooks
+from wagtail.wagtailredirects import urls
+from wagtail.wagtailredirects.permissions import permission_policy
 
 
 @hooks.register('register_admin_urls')
@@ -18,10 +20,8 @@ def register_admin_urls():
 
 class RedirectsMenuItem(MenuItem):
     def is_shown(self, request):
-        return (
-            request.user.has_perm('wagtailredirects.add_redirect')
-            or request.user.has_perm('wagtailredirects.change_redirect')
-            or request.user.has_perm('wagtailredirects.delete_redirect')
+        return permission_policy.user_has_any_permission(
+            request.user, ['add', 'change', 'delete']
         )
 
 

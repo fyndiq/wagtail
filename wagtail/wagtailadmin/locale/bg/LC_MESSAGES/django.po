@@ -9,9 +9,9 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Wagtail\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-12-17 13:54+0000\n"
-"PO-Revision-Date: 2015-12-17 13:57+0000\n"
-"Last-Translator: mattwestcott <matthew@torchbox.com>\n"
+"POT-Creation-Date: 2017-04-19 21:02+0000\n"
+"PO-Revision-Date: 2017-04-19 21:05+0000\n"
+"Last-Translator: Matt Westcott <matthew@torchbox.com>\n"
 "Language-Team: Bulgarian (http://www.transifex.com/torchbox/wagtail/language/"
 "bg/)\n"
 "MIME-Version: 1.0\n"
@@ -42,6 +42,9 @@ msgstr ""
 msgid "This email address is not recognised."
 msgstr "Този имейл не е разпознат."
 
+msgid "This slug is already in use"
+msgstr "Този слъг е вече в употреба"
+
 msgid "Account"
 msgstr "Профил"
 
@@ -62,9 +65,6 @@ msgstr "Смени парола"
 
 msgid "Change the password you use to log in."
 msgstr "Сменете паролата, която ползвате за да влезете."
-
-msgid "Change Password"
-msgstr "Смени парола"
 
 msgid ""
 "Your password can't be changed here. Please contact a site administrator."
@@ -92,9 +92,6 @@ msgstr "Проверете си имейла"
 
 msgid "A link to reset your password has been emailed to you."
 msgstr "Изпратихме ви имейл с линк, с който да възстановите паролата си."
-
-msgid "Please follow the link below to reset your password"
-msgstr "Моля следвайте линка по-долу за да възстановите паролата си"
 
 msgid "Password reset"
 msgstr "Паролата е възстановена"
@@ -201,10 +198,6 @@ msgid "Forgotten it?"
 msgstr "Забравихте ли?"
 
 #, python-format
-msgid "The page \"%(title)s\" has been approved"
-msgstr "Страницата \"%(title)s\" беше одобрена"
-
-#, python-format
 msgid "The page \"%(title)s\" has been approved."
 msgstr "Страницата \"%(title)s\" беше одобрена."
 
@@ -212,8 +205,8 @@ msgid "You can view the page here:"
 msgstr "Можете да прегледате страницата тук:"
 
 #, python-format
-msgid "The page \"%(title)s\" has been rejected"
-msgstr "Елемента \"%(title)s\" на страницата бе отхвърлен"
+msgid "The page \"%(title)s\" has been approved"
+msgstr "Страницата \"%(title)s\" беше одобрена"
 
 #, python-format
 msgid "The page \"%(title)s\" has been rejected."
@@ -223,11 +216,15 @@ msgid "You can edit the page here:"
 msgstr "Можете да редактирате страницата тук:"
 
 #, python-format
-msgid "The page \"%(page)s\" has been submitted for moderation"
-msgstr "Страницата \"%(page)s\" бе предоставена за модериране"
+msgid "The page \"%(title)s\" has been rejected"
+msgstr "Елемента \"%(title)s\" на страницата бе отхвърлен"
 
 msgid "You can preview the page here:"
 msgstr "Можете да прегледате страницата тук:"
+
+#, python-format
+msgid "The page \"%(page)s\" has been submitted for moderation"
+msgstr "Страницата \"%(page)s\" бе предоставена за модериране"
 
 #, python-format
 msgid "Create a page in %(title)s"
@@ -268,20 +265,6 @@ msgstr[1] ""
 "\n"
 "                    Това ще изтрие още %(descendant_count)s подстраници.\n"
 "                "
-
-msgid ""
-"Alternatively you can unpublish the page. This removes the page from public "
-"view and you can edit or publish it again later."
-msgstr ""
-"Като алтернатива можете да прекратите публикуването на страницата. Това "
-"премахва страницата от обществен достъп и ще можете да редактирате или да го "
-"публикувате отново по-късно."
-
-msgid "Delete it"
-msgstr "Изтрийте го"
-
-msgid "Unpublish it"
-msgstr "Отмени публикуването"
 
 #, python-format
 msgid "Move %(title)s"
@@ -359,9 +342,6 @@ msgstr "Мениджър"
 msgid "Add a child page to '%(title)s'"
 msgstr "Добавете дъщерна страница към '%(title)s'"
 
-msgid "Add subpage"
-msgstr "Добавете подстраница"
-
 msgid "Add child page"
 msgstr "Добави дъщерна страница"
 
@@ -408,26 +388,11 @@ msgstr "Паролата ви бе променена успешно!"
 msgid "Page '{0}' created."
 msgstr "Страница '{0}' е създадена."
 
-#, python-brace-format
-msgid "Page '{0}' published."
-msgstr "Страница '{0}' е публикувана."
-
-#, python-brace-format
-msgid "Page '{0}' submitted for moderation."
-msgstr "Страница '{0}' е предоставена за модерация."
-
-#, python-brace-format
-msgid "Page '{0}' updated."
-msgstr "Страница '{0}' обновена."
-
 msgid "The page could not be saved due to validation errors"
 msgstr "Тази страница не можеше да бъде запазена поради валидационни грешки"
 
 msgid "This page is currently awaiting moderation"
 msgstr "Тази страница очаква да бъде модерирана"
-
-msgid "This slug is already in use"
-msgstr "Този слъг е вече в употреба"
 
 #, python-brace-format
 msgid "Page '{0}' deleted."
@@ -444,6 +409,10 @@ msgstr "Страница '{0}' преместена."
 #, python-brace-format
 msgid "The page '{0}' is not currently awaiting moderation."
 msgstr "Страница '{0}' не очаква да бъде модерирана."
+
+#, python-brace-format
+msgid "Page '{0}' published."
+msgstr "Страница '{0}' е публикувана."
 
 #, python-brace-format
 msgid "Page '{0}' rejected for publication."

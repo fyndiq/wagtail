@@ -1,6 +1,8 @@
 
-from django.db.models.query import QuerySet
+from __future__ import absolute_import, unicode_literals
+
 from django.db.models.lookups import Lookup
+from django.db.models.query import QuerySet
 from django.db.models.sql.where import SubqueryConstraint, WhereNode
 from django.utils.six import text_type
 
@@ -25,15 +27,6 @@ class BaseSearchQuery(object):
         self.operator = operator or self.DEFAULT_OPERATOR
         self.order_by_relevance = order_by_relevance
 
-    def _get_searchable_field(self, field_attname):
-        # Get field
-        field = dict(
-            (field.get_attname(self.queryset.model), field)
-            for field in self.queryset.model.get_searchable_search_fields()
-        ).get(field_attname, None)
-
-        return field
-
     def _get_filterable_field(self, field_attname):
         # Get field
         field = dict(
@@ -55,8 +48,8 @@ class BaseSearchQuery(object):
 
         if field is None:
             raise FieldError(
-                'Cannot filter search results with field "' + field_attname + '". Please add index.FilterField(\''
-                + field_attname + '\') to ' + self.queryset.model.__name__ + '.search_fields.'
+                'Cannot filter search results with field "' + field_attname + '". Please add index.FilterField(\'' +
+                field_attname + '\') to ' + self.queryset.model.__name__ + '.search_fields.'
             )
 
         # Process the lookup
@@ -64,8 +57,8 @@ class BaseSearchQuery(object):
 
         if result is None:
             raise FilterError(
-                'Could not apply filter on search results: "' + field_attname + '__'
-                + lookup + ' = ' + text_type(value) + '". Lookup "' + lookup + '"" not recognosed.'
+                'Could not apply filter on search results: "' + field_attname + '__' +
+                lookup + ' = ' + text_type(value) + '". Lookup "' + lookup + '"" not recognised.'
             )
 
         return result
@@ -111,6 +104,7 @@ class BaseSearchResults(object):
         self.stop = None
         self._results_cache = None
         self._count_cache = None
+        self._score_field = None
 
     def _set_limits(self, start=None, stop=None):
         if stop is not None:
@@ -130,6 +124,7 @@ class BaseSearchResults(object):
         new = klass(self.backend, self.query, prefetch_related=self.prefetch_related)
         new.start = self.start
         new.stop = self.stop
+        new._score_field = self._score_field
         return new
 
     def _do_search(self):
@@ -183,15 +178,38 @@ class BaseSearchResults(object):
         data = list(self[:21])
         if len(data) > 20:
             data[-1] = "...(remaining elements truncated)..."
-        return repr(data)
+        return '<SearchResults %r>' % data
+
+    def annotate_score(self, field_name):
+        clone = self._clone()
+        clone._score_field = field_name
+        return clone
 
 
-class BaseSearch(object):
-    search_query_class = None
-    search_results_class = None
+class EmptySearchResults(BaseSearchResults):
+    def __init__(self):
+        return super(EmptySearchResults, self).__init__(None, None)
+
+    def _clone(self):
+        return self.__class__()
+
+    def _do_search(self):
+        return []
+
+    def _do_count(self):
+        return 0
+
+
+class BaseSearchBackend(object):
+    query_class = None
+    results_class = None
+    rebuilder_class = None
 
     def __init__(self, params):
         pass
+
+    def get_index_for_model(self, model):
+        return None
 
     def get_rebuilder(self):
         return None
@@ -226,11 +244,22 @@ class BaseSearch(object):
 
         # Model must be a class that is in the index
         if not class_is_indexed(model):
-            return []
+            return EmptySearchResults()
 
         # Check that theres still a query string after the clean up
         if query_string == "":
-            return []
+            return EmptySearchResults()
+
+        # Only fields that are indexed as a SearchField can be passed in fields
+        if fields:
+            allowed_fields = {field.field_name for field in model.get_searchable_search_fields()}
+
+            for field_name in fields:
+                if field_name not in allowed_fields:
+                    raise FieldError(
+                        'Cannot search with field "' + field_name + '". Please add index.SearchField(\'' +
+                        field_name + '\') to ' + model.__name__ + '.search_fields.'
+                    )
 
         # Apply filters to queryset
         if filters:
@@ -248,7 +277,7 @@ class BaseSearch(object):
                 raise ValueError("operator must be either 'or' or 'and'")
 
         # Search
-        search_query = self.search_query_class(
+        search_query = self.query_class(
             queryset, query_string, fields=fields, operator=operator, order_by_relevance=order_by_relevance
         )
-        return self.search_results_class(self, search_query)
+        return self.results_class(self, search_query)

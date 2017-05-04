@@ -1,5 +1,5 @@
 {% extends "wagtailadmin/admin_base.html" %}
-{% load wagtailadmin_tags wagtailcore_tags static i18n %}
+{% load wagtailadmin_tags wagtailcore_tags staticfiles i18n %}
 
 {% block furniture %}
     <div class="nav-wrapper">
@@ -11,14 +11,7 @@
                 <span>{% trans "Dashboard" %}</span>
             </a>
 
-            <form class="nav-search" action="{% url 'wagtailadmin_pages:search' %}" method="get">
-                <div>
-                    <label for="menu-search-q">{% trans "Search" %}</label>
-                    <input type="text" id="menu-search-q" name="q" placeholder="{% trans 'Search' %}" />
-                    <button type="submit">{% trans "Search" %}</button>
-                </div>
-            </form>
-
+            {% menu_search %}
             {% main_nav %}
         </div>
 
@@ -34,7 +27,7 @@
                 {% if messages %}
                     <ul>
                         {% for message in messages %}
-                            <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message|safe }}</li>
+                            <li class="{% message_tags message %}">{{ message|safe }}</li>
                         {% endfor %}
                     </ul>
                 {% endif %}

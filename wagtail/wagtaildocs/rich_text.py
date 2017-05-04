@@ -1,6 +1,8 @@
+from __future__ import absolute_import, unicode_literals
+
 from django.utils.html import escape
 
-from wagtail.wagtaildocs.models import Document
+from wagtail.wagtaildocs.models import get_document_model
 
 
 class DocumentLinkHandler(object):
@@ -10,6 +12,7 @@ class DocumentLinkHandler(object):
 
     @staticmethod
     def expand_db_attributes(attrs, for_editor):
+        Document = get_document_model()
         try:
             doc = Document.objects.get(id=attrs['id'])
 

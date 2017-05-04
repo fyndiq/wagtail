@@ -3,15 +3,15 @@
 # This file is distributed under the same license as the PACKAGE package.
 #
 # Translators:
-# Daigo Shitara <stain.witness@gmail.com>, 2014
+# Daigo Shitara <stain.witness@gmail.com>, 2014,2016
 # 石田秀 <ishidashu@gmail.com>, 2015
 msgid ""
 msgstr ""
 "Project-Id-Version: Wagtail\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-12-17 13:54+0000\n"
-"PO-Revision-Date: 2015-12-17 13:57+0000\n"
-"Last-Translator: mattwestcott <matthew@torchbox.com>\n"
+"POT-Creation-Date: 2017-04-19 21:02+0000\n"
+"PO-Revision-Date: 2017-04-19 21:05+0000\n"
+"Last-Translator: Matt Westcott <matthew@torchbox.com>\n"
 "Language-Team: Japanese (http://www.transifex.com/torchbox/wagtail/language/"
 "ja/)\n"
 "MIME-Version: 1.0\n"
@@ -26,11 +26,23 @@ msgstr "予定公開日"
 msgid "Common page configuration"
 msgstr "ページの一般設定"
 
+msgid "Content"
+msgstr "コンテンツ"
+
+msgid "Promote"
+msgstr "プロモート"
+
+msgid "Settings"
+msgstr "設定"
+
 msgid "Search"
 msgstr "検索"
 
 msgid "Search term"
 msgstr "検索語"
+
+msgid "URL"
+msgstr "URL"
 
 msgid "Enter password"
 msgstr "パスワードを入力してください"
@@ -100,14 +112,17 @@ msgid ""
 "This slug is already in use within the context of its parent page \"%s\""
 msgstr "このスラッグ（\"%s\"）は親ページで既に使用されています。"
 
-msgid "Public"
-msgstr "公開"
-
-msgid "Private, accessible with the following password"
-msgstr "限定公開（次のパスワードによりアクセス可能）"
-
 msgid "This field is required."
 msgstr "この項目は必須です"
+
+msgid "This slug is already in use"
+msgstr "このスラッグはすでに使われています"
+
+msgid "Go live date/time must be before expiry date/time"
+msgstr "公開予定日は削除予定日よりも前に設定されていなければなりません。"
+
+msgid "Expiry date/time must be in the future"
+msgstr "削除予定日を過ぎています。"
 
 msgid "Account"
 msgstr "アカウント"
@@ -136,16 +151,10 @@ msgstr "通知設定"
 msgid "Choose which email notifications to receive."
 msgstr "受信するEメール通知を選択します。"
 
-msgid "Change Password"
-msgstr "パスワードを変更する"
-
 msgid ""
 "Your password can't be changed here. Please contact a site administrator."
 msgstr ""
 "パスワードを変更することができません。サイトの管理者に連絡してください。"
-
-msgid "Notification Preferences"
-msgstr "通知方法"
 
 msgid "Update"
 msgstr "アップデート"
@@ -170,9 +179,6 @@ msgstr "メールを確認"
 
 msgid "A link to reset your password has been emailed to you."
 msgstr "パスワードを再設定するリンクがあなたのメールアドレスに送信されました。"
-
-msgid "Please follow the link below to reset your password"
-msgstr "下記のリンクに従ってパスワードを再設定してください。"
 
 msgid "Password reset"
 msgstr "パスワードが再設定されました"
@@ -253,6 +259,10 @@ msgstr "リンクを挿入"
 
 msgid "Add an external link"
 msgstr "外部リンクを追加"
+
+#, python-format
+msgid "Add %(heading)s"
+msgstr "%(heading)sを追加"
 
 msgid "Yes, delete"
 msgstr "はい、削除します"
@@ -346,9 +356,8 @@ msgstr "Wagtailへサインイン"
 msgid "Forgotten it?"
 msgstr "パスワードを忘れましたか？"
 
-#, python-format
-msgid "The page \"%(title)s\" has been approved"
-msgstr "ページ：%(title)s が承認されました"
+msgid "Signing in..."
+msgstr "サインイン中..."
 
 #, python-format
 msgid "The page \"%(title)s\" has been approved."
@@ -357,12 +366,12 @@ msgstr "ページ：%(title)s が承認されました"
 msgid "You can view the page here:"
 msgstr "このページを閲覧："
 
+#, python-format
+msgid "The page \"%(title)s\" has been approved"
+msgstr "ページ：%(title)s が承認されました"
+
 msgid "Edit your notification preferences here:"
 msgstr "通知方法を編集："
-
-#, python-format
-msgid "The page \"%(title)s\" has been rejected"
-msgstr "ページ：%(title)s は承認されませんでした"
 
 #, python-format
 msgid "The page \"%(title)s\" has been rejected."
@@ -372,11 +381,19 @@ msgid "You can edit the page here:"
 msgstr "このページを編集："
 
 #, python-format
-msgid "The page \"%(page)s\" has been submitted for moderation"
-msgstr "ページ：%(page)s は現在承認待ちです。"
+msgid "The page \"%(title)s\" has been rejected"
+msgstr "ページ：%(title)s は承認されませんでした"
+
+#, python-format
+msgid "The page \"%(page)s\" has been submitted for moderation by %(editor)s."
+msgstr "ページ：%(page)s は現在%(editor)sによる承認待ちです。"
 
 msgid "You can preview the page here:"
 msgstr "ページをプレビュー："
+
+#, python-format
+msgid "The page \"%(page)s\" has been submitted for moderation"
+msgstr "ページ：%(page)s は現在承認待ちです。"
 
 msgid "Page privacy"
 msgstr "ページの公開設定"
@@ -401,6 +418,9 @@ msgstr "ロックなし"
 
 msgid "Privacy"
 msgstr "公開設定"
+
+msgid "Public"
+msgstr "公開"
 
 msgid "Private"
 msgstr "非公開"
@@ -439,19 +459,6 @@ msgid_plural ""
 msgstr[0] ""
 "\n"
 "この操作により%(descendant_count)s個のサブページが削除されます。"
-
-msgid ""
-"Alternatively you can unpublish the page. This removes the page from public "
-"view and you can edit or publish it again later."
-msgstr ""
-"別の選択肢として、このページを非公開に変更することができます。非公開に設定さ"
-"れたページはのちに編集、再度公開することが可能です。"
-
-msgid "Delete it"
-msgstr "削除する"
-
-msgid "Unpublish it"
-msgstr "非公開に設定"
 
 #, python-format
 msgid "Move %(title)s"
@@ -506,8 +513,14 @@ msgstr "新規の%(page_type)s"
 msgid "New"
 msgstr "新規作成"
 
+msgid "Saving..."
+msgstr "保存中..."
+
 msgid "Save draft"
 msgstr "下書きを保存"
+
+msgid "Publishing..."
+msgstr "公開中..."
 
 msgid "Publish"
 msgstr "公開"
@@ -544,6 +557,62 @@ msgstr "ドラッグ"
 msgid "Updated"
 msgstr "更新"
 
+msgid ""
+"\n"
+"                            The root level is where you can add new sites to "
+"your Wagtail installation. Pages created here will not be accessible at any "
+"URL until they are associated with a site.\n"
+"                        "
+msgstr ""
+"\n"
+"ルートは、インストールしたWagtailに新しいサイトを追加できる場所です。ここで作"
+"成されたページは、サイトと関連付けするまで、どのURLからもアクセスできません。"
+
+msgid "Configure a site now."
+msgstr "サイトを設定する"
+
+msgid ""
+"\n"
+"                            If you just want to add pages to an existing "
+"site, create them as children of the homepage instead.\n"
+"                        "
+msgstr ""
+"\n"
+"既存のサイトにページを追加したい場合は、ホームページの子ページとして作成して"
+"ください。"
+
+msgid ""
+"\n"
+"                        Pages created here will not be accessible at any "
+"URL. To add pages to an existing site, create them as children of the "
+"homepage.\n"
+"                    "
+msgstr ""
+"\n"
+"ここで作成されたページは、どのURLからもアクセスできません。サイトにページを追"
+"加したい場合は、ホームページの子ページとして作成してください。"
+
+msgid ""
+"\n"
+"                        There is no site set up for this location. Pages "
+"created here will not be accessible at any URL until a site is associated "
+"with this location.\n"
+"                    "
+msgstr ""
+"\n"
+"この場所に設定されたサイトはありません。この場所に作成されたページは、この場"
+"所に紐付けられるまでどのURLからもアクセスできません。"
+
+msgid ""
+"\n"
+"                        There is no site record for this location. Pages "
+"created here will not be accessible at any URL.\n"
+"                    "
+msgstr ""
+"\n"
+"この場所にはサイトのレコードがありません。ここで作成されたページは、どのURLか"
+"らもアクセスできません。"
+
 msgid "No pages have been created at this location."
 msgstr "ここに作成されたページはありません。"
 
@@ -568,16 +637,6 @@ msgstr "%(title)sの子ページを閲覧"
 #, python-format
 msgid "Add a child page to '%(title)s'"
 msgstr "%(title)sに子ページを追加"
-
-msgid "Add subpage"
-msgstr "サブページを追加"
-
-msgid ""
-"This page is published but does not exist within a configured Site, so "
-"cannot be viewed."
-msgstr ""
-"このページは公開されていますが設定変更後のサイトに存在ないために閲覧できませ"
-"ん。"
 
 msgid "Add child page"
 msgstr "子ページを追加"
@@ -729,20 +788,14 @@ msgstr ""
 "ています。 <a href=\"http://browsehappy.com/\">ブラウザを更新</a>してくださ"
 "い。."
 
-msgid "Javascript is required to use Wagtail, but it is currently disabled"
-msgstr "Wagtailの使用にはJavascriptが必要ですが、ただいま無効です。"
-
-msgid "User bar"
-msgstr "ユーザーバー"
-
 msgid "Go to Wagtail admin interface"
 msgstr "Wagtailの管理者インターフェースに移動"
 
 msgid "Add a child page"
 msgstr "子ページを追加"
 
-msgid "Add"
-msgstr "追加"
+msgid "Test"
+msgstr "テスト"
 
 msgid "Sorry, you do not have permission to access this area."
 msgstr "アクセス権がありません。"
@@ -774,18 +827,6 @@ msgstr "ページ：'{0}' が作成されました。"
 msgid "The page could not be created due to validation errors"
 msgstr "このページはエラーにより作成できませんでした。"
 
-#, python-brace-format
-msgid "Page '{0}' published."
-msgstr "ページ：'{0}' が公開されました。"
-
-#, python-brace-format
-msgid "Page '{0}' submitted for moderation."
-msgstr "ページ：'{0}' が承認待ちになりました。"
-
-#, python-brace-format
-msgid "Page '{0}' updated."
-msgstr "ページ：'{0}' が更新されました。"
-
 msgid "The page could not be saved as it is locked"
 msgstr "このページはロックされているため、保存できませんでした。"
 
@@ -794,15 +835,6 @@ msgstr "このページはエラーにより保存できませんでした。"
 
 msgid "This page is currently awaiting moderation"
 msgstr "このページは現在承認待ちです。"
-
-msgid "This slug is already in use"
-msgstr "このスラッグはすでに使われています"
-
-msgid "Go live date/time must be before expiry date/time"
-msgstr "公開予定日は削除予定日よりも前に設定されていなければなりません。"
-
-msgid "Expiry date/time must be in the future"
-msgstr "削除予定日を過ぎています。"
 
 #, python-brace-format
 msgid "Page '{0}' deleted."
@@ -824,18 +856,13 @@ msgstr "ページ：'{0}' とサブページ：'{1}'が複製されました。 
 msgid "Page '{0}' copied."
 msgstr "ページ：'{0}' がコピーされました。"
 
-msgid "Content"
-msgstr "コンテンツ"
-
-msgid "Promote"
-msgstr "プロモート"
-
-msgid "Settings"
-msgstr "設定"
-
 #, python-brace-format
 msgid "The page '{0}' is not currently awaiting moderation."
 msgstr "ページ：'{0}' は現在承認待ちではありません。"
+
+#, python-brace-format
+msgid "Page '{0}' published."
+msgstr "ページ：'{0}' が公開されました。"
 
 #, python-brace-format
 msgid "Page '{0}' rejected for publication."
@@ -848,6 +875,9 @@ msgstr "ページ：'{0}' は現在ロックされています。"
 #, python-brace-format
 msgid "Page '{0}' is now unlocked."
 msgstr "ページ：'{0}' のロックが解除されました。"
+
+msgid "Pages"
+msgstr "ページ"
 
 msgid "Choose an item"
 msgstr "アイテムを選択"

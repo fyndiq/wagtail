@@ -1,4 +1,4 @@
-// user avatars, with fallback to placeholder graphic if no gravatar exists
+// user avatars
 .avatar {
     border-radius: 100%;
     position: relative;
@@ -19,41 +19,23 @@
         border: 0;
     }
 
-    &:before {
-        border-radius: 100%;
-        color: $color-grey-3;
-        border: 2px solid $color-grey-3;
-        text-align: center;
-        display: inline-block;
-        width: 42px;
-        height: 42px;
-        line-height: 42px;
-        margin: 2px 0 0;
-        z-index: 1;
-        left: 0;
-        font-size: 22px;
-    }
-   
     &.small {
         vertical-align: middle;
         margin: 0 0.5em;
         width: 25px;
         height: 25px;
-
-        &:before {
-            margin: 0;
-            width: 22px;
-            height: 22px;
-            line-height: 22px;
-            border-width: 1px;
-            font-size: 14px;
-            text-indent: 0.1em;
-        }
     }
 
-    &.avatar-on-dark:before {
-        color: $color-grey-2;
-        border-color: $color-grey-2; 
+    &.square {
+        border-radius: 0;
+
+        img {
+            border-radius: 0;
+        }
+
+        &:before {
+            border-radius: 0;
+        }
     }
 }
 
@@ -118,7 +100,7 @@
     -webkit-font-smoothing: auto;
     font-size: 0.8em;
     margin: 0 0.5em 0.5em;
-    background: #fff url('#{$static-root}bg-dark-diag.svg');
+    background: #fff url('#{$images-root}bg-dark-diag.svg');
 
     &.primary {
         color: $color-grey-2;
@@ -253,7 +235,7 @@ img {
 
 // Show a transparency grid in background
 .show-transparency {
-    background: url('#{$static-root}transparency.svg');
+    background: url('#{$images-root}transparency.svg');
 }
 
 // make a block-level element inline

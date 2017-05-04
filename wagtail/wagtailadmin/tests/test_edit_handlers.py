@@ -1,35 +1,34 @@
+from __future__ import absolute_import, unicode_literals
+
 from datetime import date
 
-from django.core.exceptions import ImproperlyConfigured
-from django.test import TestCase
+import mock
 from django import forms
+from django.core import checks
+from django.core.exceptions import ImproperlyConfigured
+from django.test import TestCase, override_settings
 
-from wagtail.wagtailadmin.edit_handlers import (
-    get_form_for_model,
-    extract_panel_definitions_from_model_class,
-    FieldPanel,
-    RichTextFieldPanel,
-    TabbedInterface,
-    ObjectList,
-    PageChooserPanel,
-    InlinePanel,
-)
-
-from wagtail.wagtailadmin.widgets import AdminPageChooser, AdminDateInput, AdminAutoHeightTextInput
-from wagtail.wagtailimages.edit_handlers import ImageChooserPanel
-from wagtail.wagtailcore.models import Page, Site
-from wagtail.wagtailcore.fields import RichTextArea
+from wagtail.tests.testapp.forms import ValidatedPageForm
 from wagtail.tests.testapp.models import (
-    PageChooserModel, EventPageChooserModel, EventPage, EventPageSpeaker, SimplePage
-)
+    EventPage, EventPageChooserModel, EventPageSpeaker, PageChooserModel, SimplePage, ValidatedPage)
 from wagtail.tests.utils import WagtailTestUtils
+from wagtail.wagtailadmin.edit_handlers import (
+    FieldPanel, FieldRowPanel, InlinePanel, ObjectList, PageChooserPanel, RichTextFieldPanel,
+    TabbedInterface, extract_panel_definitions_from_model_class, get_form_for_model)
+from wagtail.wagtailadmin.forms import WagtailAdminModelForm, WagtailAdminPageForm
+from wagtail.wagtailadmin.rich_text import HalloRichTextArea
+from wagtail.wagtailadmin.widgets import AdminAutoHeightTextInput, AdminDateInput, AdminPageChooser
+from wagtail.wagtailcore.models import Page, Site
+from wagtail.wagtailimages.edit_handlers import ImageChooserPanel
 
 
 class TestGetFormForModel(TestCase):
     def test_get_form_for_model(self):
-        EventPageForm = get_form_for_model(EventPage)
+        EventPageForm = get_form_for_model(EventPage, form_class=WagtailAdminPageForm)
         form = EventPageForm()
 
+        # form should be a subclass of WagtailAdminModelForm
+        self.assertTrue(issubclass(EventPageForm, WagtailAdminModelForm))
         # form should contain a title field (from the base Page)
         self.assertEqual(type(form.fields['title']), forms.CharField)
         # and 'date_from' from EventPage
@@ -48,19 +47,21 @@ class TestGetFormForModel(TestCase):
         # Test that field overrides defined through DIRECT_FORM_FIELD_OVERRIDES
         # are applied
 
-        SimplePageForm = get_form_for_model(SimplePage)
+        SimplePageForm = get_form_for_model(SimplePage, form_class=WagtailAdminPageForm)
         simple_form = SimplePageForm()
         # plain TextFields should use AdminAutoHeightTextInput as the widget
         self.assertEqual(type(simple_form.fields['content'].widget), AdminAutoHeightTextInput)
 
         # This override should NOT be applied to subclasses of TextField such as
         # RichTextField - they should retain their default widgets
-        EventPageForm = get_form_for_model(EventPage)
+        EventPageForm = get_form_for_model(EventPage, form_class=WagtailAdminPageForm)
         event_form = EventPageForm()
-        self.assertEqual(type(event_form.fields['body'].widget), RichTextArea)
+        self.assertEqual(type(event_form.fields['body'].widget), HalloRichTextArea)
 
     def test_get_form_for_model_with_specific_fields(self):
-        EventPageForm = get_form_for_model(EventPage, fields=['date_from'], formsets=['speakers'])
+        EventPageForm = get_form_for_model(
+            EventPage, form_class=WagtailAdminPageForm, fields=['date_from'],
+            formsets=['speakers'])
         form = EventPageForm()
 
         # form should contain date_from but not title
@@ -73,7 +74,9 @@ class TestGetFormForModel(TestCase):
         self.assertNotIn('related_links', form.formsets)
 
     def test_get_form_for_model_with_excluded_fields(self):
-        EventPageForm = get_form_for_model(EventPage, exclude=['title'], exclude_formsets=['related_links'])
+        EventPageForm = get_form_for_model(
+            EventPage, form_class=WagtailAdminPageForm,
+            exclude=['title'], exclude_formsets=['related_links'])
         form = EventPageForm()
 
         # form should contain date_from but not title
@@ -81,26 +84,110 @@ class TestGetFormForModel(TestCase):
         self.assertEqual(type(form.fields['date_from'].widget), AdminDateInput)
         self.assertNotIn('title', form.fields)
 
-        # 'path' should still be excluded even though it isn't explicitly in the exclude list
-        self.assertNotIn('path', form.fields)
+        # 'path' is not excluded any more, as the excluded fields were overridden
+        self.assertIn('path', form.fields)
 
         # formsets should include speakers but not related_links
         self.assertIn('speakers', form.formsets)
         self.assertNotIn('related_links', form.formsets)
 
     def test_get_form_for_model_with_widget_overides_by_class(self):
-        EventPageForm = get_form_for_model(EventPage, widgets={'date_from': forms.PasswordInput})
+        EventPageForm = get_form_for_model(
+            EventPage, form_class=WagtailAdminPageForm,
+            widgets={'date_from': forms.PasswordInput})
         form = EventPageForm()
 
         self.assertEqual(type(form.fields['date_from']), forms.DateField)
         self.assertEqual(type(form.fields['date_from'].widget), forms.PasswordInput)
 
     def test_get_form_for_model_with_widget_overides_by_instance(self):
-        EventPageForm = get_form_for_model(EventPage, widgets={'date_from': forms.PasswordInput()})
+        EventPageForm = get_form_for_model(
+            EventPage, form_class=WagtailAdminPageForm,
+            widgets={'date_from': forms.PasswordInput()})
         form = EventPageForm()
 
         self.assertEqual(type(form.fields['date_from']), forms.DateField)
         self.assertEqual(type(form.fields['date_from'].widget), forms.PasswordInput)
+
+
+def clear_edit_handler(page_cls):
+    def decorator(fn):
+        def decorated(self):
+            # Clear any old EditHandlers generated
+            page_cls.get_edit_handler.cache_clear()
+            try:
+                fn(self)
+            finally:
+                # Clear the bad EditHandler generated just now
+                page_cls.get_edit_handler.cache_clear()
+    return decorator
+
+
+class TestPageEditHandlers(TestCase):
+
+    @clear_edit_handler(EventPage)
+    def test_get_edit_handler(self):
+        """
+        Forms for pages should have a base class of WagtailAdminPageForm.
+        """
+        EditHandler = EventPage.get_edit_handler()
+        EventPageForm = EditHandler.get_form_class(EventPage)
+
+        # The generated form should inherit from WagtailAdminPageForm
+        self.assertTrue(issubclass(EventPageForm, WagtailAdminPageForm))
+
+    @clear_edit_handler(ValidatedPage)
+    def test_get_form_for_page_with_custom_base(self):
+        """
+        ValidatedPage sets a custom base_form_class. This should be used as the
+        base class when constructing a form for ValidatedPages
+        """
+        EditHandler = ValidatedPage.get_edit_handler()
+        GeneratedValidatedPageForm = EditHandler.get_form_class(ValidatedPage)
+
+        # The generated form should inherit from ValidatedPageForm, because
+        # ValidatedPage.base_form_class == ValidatedPageForm
+        self.assertTrue(issubclass(GeneratedValidatedPageForm, ValidatedPageForm))
+
+    @clear_edit_handler(ValidatedPage)
+    def test_check_invalid_base_form_class(self):
+        class BadFormClass(object):
+            pass
+
+        invalid_base_form = checks.Error(
+            "ValidatedPage.base_form_class does not extend WagtailAdminPageForm",
+            hint="Ensure that wagtail.wagtailadmin.tests.test_edit_handlers.BadFormClass extends WagtailAdminPageForm",
+            obj=ValidatedPage,
+            id='wagtailadmin.E001')
+
+        invalid_edit_handler = checks.Error(
+            "ValidatedPage.get_edit_handler().get_form_class(ValidatedPage) does not extend WagtailAdminPageForm",
+            hint="Ensure that the EditHandler for ValidatedPage creates a subclass of WagtailAdminPageForm",
+            obj=ValidatedPage,
+            id='wagtailadmin.E002')
+
+        with mock.patch.object(ValidatedPage, 'base_form_class', new=BadFormClass):
+            errors = checks.run_checks()
+
+            # ignore CSS loading errors (to avoid spurious failures on CI servers that
+            # don't build the CSS)
+            errors = [e for e in errors if e.id != 'wagtailadmin.W001']
+
+            self.assertEqual(errors, [invalid_base_form, invalid_edit_handler])
+
+    @clear_edit_handler(ValidatedPage)
+    def test_custom_edit_handler_form_class(self):
+        """
+        Set a custom edit handler on a Page class, but dont customise
+        ValidatedPage.base_form_class, or provide a custom form class for the
+        edit handler. Check the generated form class is of the correct type.
+        """
+        ValidatedPage.edit_handler = TabbedInterface([])
+        with mock.patch.object(ValidatedPage, 'edit_handler', new=TabbedInterface([]), create=True):
+            form_class = ValidatedPage.get_edit_handler().get_form_class(ValidatedPage)
+            self.assertTrue(issubclass(form_class, WagtailAdminPageForm))
+            errors = ValidatedPage.check()
+            self.assertEqual(errors, [])
 
 
 class TestExtractPanelDefinitionsFromModelClass(TestCase):
@@ -127,12 +214,6 @@ class TestExtractPanelDefinitionsFromModelClass(TestCase):
         # returned panel types should respect modelfield.get_panel() - used on RichTextField
         self.assertTrue(any([
             isinstance(panel, RichTextFieldPanel) and panel.field_name == 'body'
-            for panel in panels
-        ]))
-
-        # treebeard fields should be excluded
-        self.assertFalse(any([
-            panel.field_name == 'path'
             for panel in panels
         ]))
 
@@ -174,13 +255,13 @@ class TestTabbedInterface(TestCase):
         result = tabbed_interface.render()
 
         # result should contain tab buttons
-        self.assertIn('<a href="#event-details" class="active">Event details</a>', result)
-        self.assertIn('<a href="#speakers" class="">Speakers</a>', result)
+        self.assertIn('<a href="#tab-event-details" class="active">Event details</a>', result)
+        self.assertIn('<a href="#tab-speakers" class="">Speakers</a>', result)
 
         # result should contain tab panels
         self.assertIn('<div class="tab-content">', result)
-        self.assertIn('<section id="event-details" class="shiny active">', result)
-        self.assertIn('<section id="speakers" class=" ">', result)
+        self.assertIn('<section id="tab-event-details" class="shiny active">', result)
+        self.assertIn('<section id="tab-speakers" class=" ">', result)
 
         # result should contain rendered content from descendants
         self.assertIn('Abergavenny sheepdog trials</textarea>', result)
@@ -261,7 +342,8 @@ class TestObjectList(TestCase):
 
 class TestFieldPanel(TestCase):
     def setUp(self):
-        self.EventPageForm = get_form_for_model(EventPage, formsets=[])
+        self.EventPageForm = get_form_for_model(
+            EventPage, form_class=WagtailAdminPageForm, formsets=[])
         self.event = EventPage(title='Abergavenny sheepdog trials',
                                date_from=date(2014, 7, 20), date_to=date(2014, 7, 21))
 
@@ -341,6 +423,112 @@ class TestFieldPanel(TestCase):
         self.assertIn('<span>Enter a valid date.</span>', result)
 
 
+class TestFieldRowPanel(TestCase):
+    def setUp(self):
+        self.EventPageForm = get_form_for_model(
+            EventPage, form_class=WagtailAdminPageForm, formsets=[])
+        self.event = EventPage(title='Abergavenny sheepdog trials',
+                               date_from=date(2014, 7, 20), date_to=date(2014, 7, 21))
+
+        self.DatesPanel = FieldRowPanel([
+            FieldPanel('date_from', classname='col4'),
+            FieldPanel('date_to', classname='coltwo'),
+        ]).bind_to_model(EventPage)
+
+    def test_render_as_object(self):
+        form = self.EventPageForm(
+            {'title': 'Pontypridd sheepdog trials', 'date_from': '2014-07-20', 'date_to': '2014-07-22'},
+            instance=self.event)
+
+        form.is_valid()
+
+        field_panel = self.DatesPanel(
+            instance=self.event,
+            form=form
+        )
+        result = field_panel.render_as_object()
+
+        # check that the populated form field is included
+        self.assertIn('value="2014-07-22"', result)
+
+        # there should be no errors on this field
+        self.assertNotIn('<p class="error-message">', result)
+
+    def test_render_as_field(self):
+        form = self.EventPageForm(
+            {'title': 'Pontypridd sheepdog trials', 'date_from': '2014-07-20', 'date_to': '2014-07-22'},
+            instance=self.event)
+
+        form.is_valid()
+
+        field_panel = self.DatesPanel(
+            instance=self.event,
+            form=form
+        )
+        result = field_panel.render_as_field()
+
+        # check that label is output in the 'field' style
+        self.assertIn('<label for="id_date_to">End date:</label>', result)
+        self.assertNotIn('<legend>End date</legend>', result)
+
+        # check that help text is included
+        self.assertIn('Not required if event is on a single day', result)
+
+        # check that the populated form field is included
+        self.assertIn('value="2014-07-22"', result)
+
+        # there should be no errors on this field
+        self.assertNotIn('<p class="error-message">', result)
+
+    def test_error_message_is_rendered(self):
+        form = self.EventPageForm(
+            {'title': 'Pontypridd sheepdog trials', 'date_from': '2014-07-20', 'date_to': '2014-07-33'},
+            instance=self.event)
+
+        form.is_valid()
+
+        field_panel = self.DatesPanel(
+            instance=self.event,
+            form=form
+        )
+        result = field_panel.render_as_field()
+
+        self.assertIn('<p class="error-message">', result)
+        self.assertIn('<span>Enter a valid date.</span>', result)
+
+    def test_add_col_when_wrong_in_panel_def(self):
+        form = self.EventPageForm(
+            {'title': 'Pontypridd sheepdog trials', 'date_from': '2014-07-20', 'date_to': '2014-07-33'},
+            instance=self.event)
+
+        form.is_valid()
+
+        field_panel = self.DatesPanel(
+            instance=self.event,
+            form=form
+        )
+
+        result = field_panel.render_as_field()
+
+        self.assertIn('<li class="field-col coltwo col6', result)
+
+    def test_added_col_doesnt_change_siblings(self):
+        form = self.EventPageForm(
+            {'title': 'Pontypridd sheepdog trials', 'date_from': '2014-07-20', 'date_to': '2014-07-33'},
+            instance=self.event)
+
+        form.is_valid()
+
+        field_panel = self.DatesPanel(
+            instance=self.event,
+            form=form
+        )
+
+        result = field_panel.render_as_field()
+
+        self.assertIn('<li class="field-col col4', result)
+
+
 class TestPageChooserPanel(TestCase):
     fixtures = ['test.json']
 
@@ -348,10 +536,11 @@ class TestPageChooserPanel(TestCase):
         model = PageChooserModel  # a model with a foreign key to Page which we want to render as a page chooser
 
         # a PageChooserPanel class that works on PageChooserModel's 'page' field
-        self.MyPageChooserPanel = PageChooserPanel('page').bind_to_model(PageChooserModel)
+        self.EditHandler = ObjectList([PageChooserPanel('page')]).bind_to_model(PageChooserModel)
+        self.MyPageChooserPanel = self.EditHandler.children[0]
 
         # build a form class containing the fields that MyPageChooserPanel wants
-        self.PageChooserForm = self.MyPageChooserPanel.get_form_class(PageChooserModel)
+        self.PageChooserForm = self.EditHandler.get_form_class(PageChooserModel)
 
         # a test instance of PageChooserModel, pointing to the 'christmas' page
         self.christmas_page = Page.objects.get(slug='christmas')
@@ -373,8 +562,12 @@ class TestPageChooserPanel(TestCase):
 
     def test_render_js_init_with_can_choose_root_true(self):
         # construct an alternative page chooser panel object, with can_choose_root=True
-        MyPageChooserPanel = PageChooserPanel('page', can_choose_root=True).bind_to_model(PageChooserModel)
-        PageChooserForm = MyPageChooserPanel.get_form_class(PageChooserModel)
+
+        MyPageObjectList = ObjectList([
+            PageChooserPanel('page', can_choose_root=True)
+        ]).bind_to_model(PageChooserModel)
+        MyPageChooserPanel = MyPageObjectList.children[0]
+        PageChooserForm = MyPageObjectList.get_form_class(EventPageChooserModel)
 
         form = PageChooserForm(instance=self.test_instance)
         page_chooser_panel = MyPageChooserPanel(instance=self.test_instance, form=form)
@@ -418,10 +611,13 @@ class TestPageChooserPanel(TestCase):
     def test_override_page_type(self):
         # Model has a foreign key to Page, but we specify EventPage in the PageChooserPanel
         # to restrict the chooser to that page type
-        MyPageChooserPanel = PageChooserPanel('page', 'tests.EventPage').bind_to_model(EventPageChooserModel)
-        PageChooserForm = MyPageChooserPanel.get_form_class(EventPageChooserModel)
+        MyPageObjectList = ObjectList([
+            PageChooserPanel('page', 'tests.EventPage')
+        ]).bind_to_model(EventPageChooserModel)
+        MyPageChooserPanel = MyPageObjectList.children[0]
+        PageChooserForm = MyPageObjectList.get_form_class(EventPageChooserModel)
         form = PageChooserForm(instance=self.test_instance)
-        page_chooser_panel = self.MyPageChooserPanel(instance=self.test_instance, form=form)
+        page_chooser_panel = MyPageChooserPanel(instance=self.test_instance, form=form)
 
         result = page_chooser_panel.render_as_field()
         expected_js = 'createPageChooser("{id}", ["{model}"], {parent}, false);'.format(
@@ -432,10 +628,11 @@ class TestPageChooserPanel(TestCase):
     def test_autodetect_page_type(self):
         # Model has a foreign key to EventPage, which we want to autodetect
         # instead of specifying the page type in PageChooserPanel
-        MyPageChooserPanel = PageChooserPanel('page').bind_to_model(EventPageChooserModel)
-        PageChooserForm = MyPageChooserPanel.get_form_class(EventPageChooserModel)
+        MyPageObjectList = ObjectList([PageChooserPanel('page')]).bind_to_model(EventPageChooserModel)
+        MyPageChooserPanel = MyPageObjectList.children[0]
+        PageChooserForm = MyPageObjectList.get_form_class(EventPageChooserModel)
         form = PageChooserForm(instance=self.test_instance)
-        page_chooser_panel = self.MyPageChooserPanel(instance=self.test_instance, form=form)
+        page_chooser_panel = MyPageChooserPanel(instance=self.test_instance, form=form)
 
         result = page_chooser_panel.render_as_field()
         expected_js = 'createPageChooser("{id}", ["{model}"], {parent}, false);'.format(
@@ -443,28 +640,28 @@ class TestPageChooserPanel(TestCase):
 
         self.assertIn(expected_js, result)
 
-    def test_target_content_type(self):
+    def test_target_models(self):
         result = PageChooserPanel(
             'barbecue',
             'wagtailcore.site'
-        ).bind_to_model(PageChooserModel).target_content_type()[0]
-        self.assertEqual(result.name, 'site')
+        ).bind_to_model(PageChooserModel).target_models()
+        self.assertEqual(result, [Site])
 
-    def test_target_content_type_malformed_type(self):
+    def test_target_models_malformed_type(self):
         result = PageChooserPanel(
             'barbecue',
             'snowman'
         ).bind_to_model(PageChooserModel)
         self.assertRaises(ImproperlyConfigured,
-                          result.target_content_type)
+                          result.target_models)
 
-    def test_target_content_type_nonexistent_type(self):
+    def test_target_models_nonexistent_type(self):
         result = PageChooserPanel(
             'barbecue',
             'snowman.lorry'
         ).bind_to_model(PageChooserModel)
         self.assertRaises(ImproperlyConfigured,
-                          result.target_content_type)
+                          result.target_models)
 
 
 class TestInlinePanel(TestCase, WagtailTestUtils):
@@ -475,8 +672,10 @@ class TestInlinePanel(TestCase, WagtailTestUtils):
         Check that the inline panel renders the panels set on the model
         when no 'panels' parameter is passed in the InlinePanel definition
         """
-        SpeakerInlinePanel = InlinePanel('speakers', label="Speakers").bind_to_model(EventPage)
-        EventPageForm = SpeakerInlinePanel.get_form_class(EventPage)
+        SpeakerObjectList = ObjectList([
+            InlinePanel('speakers', label="Speakers", classname="classname-for-speakers")
+        ]).bind_to_model(EventPage)
+        EventPageForm = SpeakerObjectList.get_form_class(EventPage)
 
         # SpeakerInlinePanel should instruct the form class to include a 'speakers' formset
         self.assertEqual(['speakers'], list(EventPageForm.formsets.keys()))
@@ -484,10 +683,11 @@ class TestInlinePanel(TestCase, WagtailTestUtils):
         event_page = EventPage.objects.get(slug='christmas')
 
         form = EventPageForm(instance=event_page)
-        panel = SpeakerInlinePanel(instance=event_page, form=form)
+        panel = SpeakerObjectList(instance=event_page, form=form)
 
         result = panel.render_as_field()
 
+        self.assertIn('<li class="object classname-for-speakers">', result)
         self.assertIn('<label for="id_speakers-0-first_name">Name:</label>', result)
         self.assertIn('value="Father"', result)
         self.assertIn('<label for="id_speakers-0-last_name">Surname:</label>', result)
@@ -495,26 +695,41 @@ class TestInlinePanel(TestCase, WagtailTestUtils):
         self.assertIn('Choose an image', result)
 
         # rendered panel must also contain hidden fields for id, DELETE and ORDER
-        self.assertIn('<input id="id_speakers-0-id" name="speakers-0-id" type="hidden"', result)
-        self.assertIn('<input id="id_speakers-0-DELETE" name="speakers-0-DELETE" type="hidden"', result)
-        self.assertIn('<input id="id_speakers-0-ORDER" name="speakers-0-ORDER" type="hidden"', result)
+        self.assertTagInHTML(
+            '<input id="id_speakers-0-id" name="speakers-0-id" type="hidden">',
+            result, allow_extra_attrs=True
+        )
+        self.assertTagInHTML(
+            '<input id="id_speakers-0-DELETE" name="speakers-0-DELETE" type="hidden">',
+            result, allow_extra_attrs=True
+        )
+        self.assertTagInHTML(
+            '<input id="id_speakers-0-ORDER" name="speakers-0-ORDER" type="hidden">',
+            result, allow_extra_attrs=True
+        )
 
         # rendered panel must contain maintenance form for the formset
-        self.assertIn('<input id="id_speakers-TOTAL_FORMS" name="speakers-TOTAL_FORMS" type="hidden"', result)
+        self.assertTagInHTML(
+            '<input id="id_speakers-TOTAL_FORMS" name="speakers-TOTAL_FORMS" type="hidden">',
+            result, allow_extra_attrs=True
+        )
 
-        # render_js_init must provide the JS initializer
-        self.assertIn('var panel = InlinePanel({', panel.render_js_init())
+        # rendered panel must include the JS initializer
+        self.assertIn('var panel = InlinePanel({', result)
 
     def test_render_with_panel_overrides(self):
         """
         Check that inline panel renders the panels listed in the InlinePanel definition
         where one is specified
         """
-        SpeakerInlinePanel = InlinePanel('speakers', label="Speakers", panels=[
-            FieldPanel('first_name', widget=forms.Textarea),
-            ImageChooserPanel('image'),
+        SpeakerObjectList = ObjectList([
+            InlinePanel('speakers', label="Speakers", panels=[
+                FieldPanel('first_name', widget=forms.Textarea),
+                ImageChooserPanel('image'),
+            ]),
         ]).bind_to_model(EventPage)
-        EventPageForm = SpeakerInlinePanel.get_form_class(EventPage)
+        SpeakerInlinePanel = SpeakerObjectList.children[0]
+        EventPageForm = SpeakerObjectList.get_form_class(EventPage)
 
         # SpeakerInlinePanel should instruct the form class to include a 'speakers' formset
         self.assertEqual(['speakers'], list(EventPageForm.formsets.keys()))
@@ -532,24 +747,58 @@ class TestInlinePanel(TestCase, WagtailTestUtils):
         self.assertNotIn('<label for="id_speakers-0-last_name">Surname:</label>', result)
 
         # test for #338: surname field should not be rendered as a 'stray' label-less field
-        self.assertNotIn('<input id="id_speakers-0-last_name"', result)
+        self.assertTagInHTML('<input id="id_speakers-0-last_name">', result, count=0, allow_extra_attrs=True)
 
         self.assertIn('<label for="id_speakers-0-image">Image:</label>', result)
         self.assertIn('Choose an image', result)
 
         # rendered panel must also contain hidden fields for id, DELETE and ORDER
-        self.assertIn('<input id="id_speakers-0-id" name="speakers-0-id" type="hidden"', result)
-        self.assertIn('<input id="id_speakers-0-DELETE" name="speakers-0-DELETE" type="hidden"', result)
-        self.assertIn('<input id="id_speakers-0-ORDER" name="speakers-0-ORDER" type="hidden"', result)
+        self.assertTagInHTML(
+            '<input id="id_speakers-0-id" name="speakers-0-id" type="hidden">',
+            result, allow_extra_attrs=True
+        )
+        self.assertTagInHTML(
+            '<input id="id_speakers-0-DELETE" name="speakers-0-DELETE" type="hidden">',
+            result, allow_extra_attrs=True
+        )
+        self.assertTagInHTML(
+            '<input id="id_speakers-0-ORDER" name="speakers-0-ORDER" type="hidden">',
+            result, allow_extra_attrs=True
+        )
 
         # rendered panel must contain maintenance form for the formset
-        self.assertIn('<input id="id_speakers-TOTAL_FORMS" name="speakers-TOTAL_FORMS" type="hidden"', result)
+        self.assertTagInHTML(
+            '<input id="id_speakers-TOTAL_FORMS" name="speakers-TOTAL_FORMS" type="hidden">',
+            result, allow_extra_attrs=True
+        )
 
         # render_js_init must provide the JS initializer
         self.assertIn('var panel = InlinePanel({', panel.render_js_init())
 
+    @override_settings(USE_L10N=True, USE_THOUSAND_SEPARATOR=True)
+    def test_no_thousand_separators_in_js(self):
+        """
+        Test that the USE_THOUSAND_SEPARATOR setting does not screw up the rendering of numbers
+        (specifically maxForms=1000) in the JS initializer:
+        https://github.com/wagtail/wagtail/pull/2699
+        https://github.com/wagtail/wagtail/issues/3227
+        """
+        SpeakerObjectList = ObjectList([
+            InlinePanel('speakers', label="Speakers", panels=[
+                FieldPanel('first_name', widget=forms.Textarea),
+                ImageChooserPanel('image'),
+            ]),
+        ]).bind_to_model(EventPage)
+        SpeakerInlinePanel = SpeakerObjectList.children[0]
+        EventPageForm = SpeakerObjectList.get_form_class(EventPage)
+        event_page = EventPage.objects.get(slug='christmas')
+        form = EventPageForm(instance=event_page)
+        panel = SpeakerInlinePanel(instance=event_page, form=form)
+
+        self.assertIn('maxForms: 1000', panel.render_js_init())
+
+
     def test_invalid_inlinepanel_declaration(self):
         with self.ignore_deprecation_warnings():
             self.assertRaises(TypeError, lambda: InlinePanel(label="Speakers"))
-            self.assertRaises(TypeError, lambda: InlinePanel(EventPage, 'speakers', 'bacon', label="Speakers"))
             self.assertRaises(TypeError, lambda: InlinePanel(EventPage, 'speakers', label="Speakers", bacon="chunky"))

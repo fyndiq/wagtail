@@ -4,15 +4,15 @@
 #
 # Translators:
 # Dan Braghis, 2014
-# Dan Braghis, 2014-2015
+# Dan Braghis, 2014-2016
 # Dan Braghis, 2014
 msgid ""
 msgstr ""
 "Project-Id-Version: Wagtail\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-12-17 13:55+0000\n"
-"PO-Revision-Date: 2015-12-17 14:00+0000\n"
-"Last-Translator: mattwestcott <matthew@torchbox.com>\n"
+"POT-Creation-Date: 2017-04-19 21:02+0000\n"
+"PO-Revision-Date: 2017-04-19 21:08+0000\n"
+"Last-Translator: Matt Westcott <matthew@torchbox.com>\n"
 "Language-Team: Romanian (http://www.transifex.com/torchbox/wagtail/language/"
 "ro/)\n"
 "MIME-Version: 1.0\n"
@@ -25,14 +25,33 @@ msgstr ""
 msgid "Choose"
 msgstr "Alege"
 
+msgid "Search"
+msgstr "Căută"
+
 #, python-format
 msgid ""
-"You haven't created any %(snippet_type_name)s snippets. Why not <a href="
-"\"%(wagtailsnippets_create_snippet_url)s\" target=\"_blank\">create one now"
+"\n"
+"            There is one match\n"
+"        "
+msgid_plural ""
+"\n"
+"            There are %(counter)s matches\n"
+"        "
+msgstr[0] ""
+"\n"
+"Există o potrivire"
+msgstr[1] ""
+"\n"
+"Sunt %(counter)s potriviri"
+msgstr[2] ""
+"\n"
+"Sunt %(counter)s potriviri"
+
+#, python-format
+msgid "Sorry, no snippets match \"<em>%(query_string)s</em>\""
 msgstr ""
-"Nu au fost create %(snippet_type_name)s. De să nu <a href="
-"\"%(wagtailsnippets_create_snippet_url)s\" target=\"_blank\">adăugați unul</"
-"a>?"
+"Ne pare rău, nici un fragment nu se potrivește cu \"<em>%(query_string)s</em>"
+"\""
 
 #, python-format
 msgid "Delete %(snippet_type_name)s - %(instance)s"
@@ -55,8 +74,11 @@ msgstr "%(snippet_type_name)s nou"
 msgid "New"
 msgstr "Nou"
 
+msgid "Saving..."
+msgstr "În curse de salvare..."
+
 msgid "Save"
-msgstr "Salveză"
+msgstr "Salvează"
 
 #, python-format
 msgid "Editing %(snippet_type_name)s - %(instance)s"
@@ -109,6 +131,10 @@ msgstr "Status"
 
 msgid "Edit this page"
 msgstr "Editează această pagină"
+
+#, python-format
+msgid "Search %(snippet_type_name)s"
+msgstr "Caută %(snippet_type_name)s"
 
 #, python-brace-format
 msgid "{snippet_type} '{instance}' created."

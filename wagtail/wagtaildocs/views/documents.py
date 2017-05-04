@@ -1,24 +1,33 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.core.exceptions import PermissionDenied
+from __future__ import absolute_import, unicode_literals
+
+from django.core.urlresolvers import reverse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.translation import ugettext as _
 from django.views.decorators.vary import vary_on_headers
-from django.core.urlresolvers import reverse
 
 from wagtail.utils.pagination import paginate
-from wagtail.wagtailadmin.forms import SearchForm
-from wagtail.wagtailadmin.utils import permission_required, any_permission_required
-from wagtail.wagtailsearch.backends import get_search_backends
 from wagtail.wagtailadmin import messages
+from wagtail.wagtailadmin.forms import SearchForm
+from wagtail.wagtailadmin.utils import (
+    PermissionPolicyChecker, permission_denied, popular_tags_for_model)
+from wagtail.wagtailcore.models import Collection
+from wagtail.wagtaildocs.forms import get_document_form
+from wagtail.wagtaildocs.models import get_document_model
+from wagtail.wagtaildocs.permissions import permission_policy
+from wagtail.wagtailsearch import index as search_index
 
-from wagtail.wagtaildocs.models import Document
-from wagtail.wagtaildocs.forms import DocumentForm
+permission_checker = PermissionPolicyChecker(permission_policy)
 
 
-@any_permission_required('wagtaildocs.add_document', 'wagtaildocs.change_document')
+@permission_checker.require_any('add', 'change', 'delete')
 @vary_on_headers('X-Requested-With')
 def index(request):
-    # Get documents
-    documents = Document.objects.all()
+    Document = get_document_model()
+
+    # Get documents (filtered by user permission)
+    documents = permission_policy.instances_user_has_any_permission_for(
+        request.user, ['change', 'delete']
+    )
 
     # Ordering
     if 'ordering' in request.GET and request.GET['ordering'] in ['title', '-created_at']:
@@ -27,10 +36,15 @@ def index(request):
         ordering = '-created_at'
     documents = documents.order_by(ordering)
 
-    # Permissions
-    if not request.user.has_perm('wagtaildocs.change_document'):
-        # restrict to the user's own documents
-        documents = documents.filter(uploaded_by_user=request.user)
+    # Filter by collection
+    current_collection = None
+    collection_id = request.GET.get('collection_id')
+    if collection_id:
+        try:
+            current_collection = Collection.objects.get(id=collection_id)
+            documents = documents.filter(collection=current_collection)
+        except (ValueError, Collection.DoesNotExist):
+            pass
 
     # Search
     query_string = None
@@ -44,6 +58,12 @@ def index(request):
 
     # Pagination
     paginator, documents = paginate(request, documents)
+
+    collections = permission_policy.collections_user_has_any_permission_for(
+        request.user, ['add', 'change']
+    )
+    if len(collections) < 2:
+        collections = None
 
     # Create response
     if request.is_ajax():
@@ -61,21 +81,26 @@ def index(request):
             'is_searching': bool(query_string),
 
             'search_form': form,
-            'popular_tags': Document.popular_tags(),
+            'popular_tags': popular_tags_for_model(Document),
+            'user_can_add': permission_policy.user_has_permission(request.user, 'add'),
+            'collections': collections,
+            'current_collection': current_collection,
         })
 
 
-@permission_required('wagtaildocs.add_document')
+@permission_checker.require('add')
 def add(request):
-    if request.POST:
+    Document = get_document_model()
+    DocumentForm = get_document_form(Document)
+
+    if request.method == 'POST':
         doc = Document(uploaded_by_user=request.user)
-        form = DocumentForm(request.POST, request.FILES, instance=doc)
+        form = DocumentForm(request.POST, request.FILES, instance=doc, user=request.user)
         if form.is_valid():
             form.save()
 
             # Reindex the document to make sure all tags are indexed
-            for backend in get_search_backends():
-                backend.add(doc)
+            search_index.insert_or_update_object(doc)
 
             messages.success(request, _("Document '{0}' added.").format(doc.title), buttons=[
                 messages.button(reverse('wagtaildocs:edit', args=(doc.id,)), _('Edit'))
@@ -84,22 +109,26 @@ def add(request):
         else:
             messages.error(request, _("The document could not be saved due to errors."))
     else:
-        form = DocumentForm()
+        form = DocumentForm(user=request.user)
 
     return render(request, "wagtaildocs/documents/add.html", {
         'form': form,
     })
 
 
+@permission_checker.require('change')
 def edit(request, document_id):
+    Document = get_document_model()
+    DocumentForm = get_document_form(Document)
+
     doc = get_object_or_404(Document, id=document_id)
 
-    if not doc.is_editable_by_user(request.user):
-        raise PermissionDenied
+    if not permission_policy.user_has_permission_for_instance(request.user, 'change', doc):
+        return permission_denied(request)
 
-    if request.POST:
+    if request.method == 'POST':
         original_file = doc.file
-        form = DocumentForm(request.POST, request.FILES, instance=doc)
+        form = DocumentForm(request.POST, request.FILES, instance=doc, user=request.user)
         if form.is_valid():
             if 'file' in form.changed_data:
                 # if providing a new document file, delete the old one.
@@ -109,8 +138,7 @@ def edit(request, document_id):
             doc = form.save()
 
             # Reindex the document to make sure all tags are indexed
-            for backend in get_search_backends():
-                backend.add(doc)
+            search_index.insert_or_update_object(doc)
 
             messages.success(request, _("Document '{0}' updated").format(doc.title), buttons=[
                 messages.button(reverse('wagtaildocs:edit', args=(doc.id,)), _('Edit'))
@@ -119,7 +147,7 @@ def edit(request, document_id):
         else:
             messages.error(request, _("The document could not be saved due to errors."))
     else:
-        form = DocumentForm(instance=doc)
+        form = DocumentForm(instance=doc, user=request.user)
 
     filesize = None
 
@@ -141,17 +169,22 @@ def edit(request, document_id):
     return render(request, "wagtaildocs/documents/edit.html", {
         'document': doc,
         'filesize': filesize,
-        'form': form
+        'form': form,
+        'user_can_delete': permission_policy.user_has_permission_for_instance(
+            request.user, 'delete', doc
+        ),
     })
 
 
+@permission_checker.require('delete')
 def delete(request, document_id):
+    Document = get_document_model()
     doc = get_object_or_404(Document, id=document_id)
 
-    if not doc.is_editable_by_user(request.user):
-        raise PermissionDenied
+    if not permission_policy.user_has_permission_for_instance(request.user, 'delete', doc):
+        return permission_denied(request)
 
-    if request.POST:
+    if request.method == 'POST':
         doc.delete()
         messages.success(request, _("Document '{0}' deleted.").format(doc.title))
         return redirect('wagtaildocs:index')
@@ -162,6 +195,7 @@ def delete(request, document_id):
 
 
 def usage(request, document_id):
+    Document = get_document_model()
     doc = get_object_or_404(Document, id=document_id)
 
     paginator, used_by = paginate(request, doc.get_usage())
